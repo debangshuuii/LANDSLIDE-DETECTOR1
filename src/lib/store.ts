@@ -27,15 +27,27 @@ export interface AlertItem {
 
 const R_KEY = 'landslideguard-reports-v1';
 const A_KEY = 'landslideguard-alerts-v1';
+const MAX_ITEMS = 100;
 
-export function loadReports(): CommunityReport[] {
-  try { return JSON.parse(localStorage.getItem(R_KEY) || '[]'); } catch { return []; }
+function readArray(key: string): unknown[] {
+  try {
+    const v = JSON.parse(localStorage.getItem(key) || '[]');
+    return Array.isArray(v) ? v : [];
+  } catch { return []; }
 }
-export function saveReports(r: CommunityReport[]) { localStorage.setItem(R_KEY, JSON.stringify(r)); }
-export function loadAlerts(): AlertItem[] {
-  try { return JSON.parse(localStorage.getItem(A_KEY) || '[]'); } catch { return []; }
+
+export function loadReports(): CommunityReport[] { return readArray(R_KEY) as CommunityReport[]; }
+export function saveReports(r: CommunityReport[]) {
+  try { localStorage.setItem(R_KEY, JSON.stringify(r.slice(0, MAX_ITEMS))); } catch { /* quota/private mode: keep in memory */ }
 }
-export function saveAlerts(a: AlertItem[]) { localStorage.setItem(A_KEY, JSON.stringify(a)); }
+export function loadAlerts(): AlertItem[] { return readArray(A_KEY) as AlertItem[]; }
+export function saveAlerts(a: AlertItem[]) {
+  try { localStorage.setItem(A_KEY, JSON.stringify(a.slice(0, MAX_ITEMS))); } catch { /* ignore */ }
+}
+
+export function makeId(prefix: string) {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
 
 export function useLocalReports() {
   const [reports, setReports] = useState<CommunityReport[]>(() => loadReports());

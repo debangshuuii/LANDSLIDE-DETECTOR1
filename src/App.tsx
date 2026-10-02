@@ -1,20 +1,39 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, lazy, useEffect, useMemo, useState } from 'react';
 import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from 'react-leaflet';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import { NER_ZONES, HISTORICAL_AVG_RAINFALL_24 } from './data/nerDistricts';
 import { HISTORICAL_INCIDENTS } from './data/historical';
 import { assessZone, WARNING_META, levelRank, type RiskLevel } from './lib/riskEngine';
 import { fetchAllLiveWeather, loadCachedWeather, type LiveWeather } from './lib/weather';
-import { useLocalAlerts, useLocalReports, photoPrelimAssessment, trend24h, type CommunityReport } from './lib/store';
+import { useLocalAlerts, useLocalReports, makeId, photoPrelimAssessment, trend24h, type CommunityReport } from './lib/store';
 
 type Tab = 'Dashboard' | 'Risk Map' | 'Monitoring' | 'Predictions' | 'Alerts' | 'Incidents' | 'Infrastructure' | 'Reports' | 'Simulation' | 'Community' | 'Admin';
 
 const TABS: Tab[] = ['Dashboard', 'Risk Map', 'Monitoring', 'Predictions', 'Alerts', 'Incidents', 'Infrastructure', 'Reports', 'Simulation', 'Community', 'Admin'];
 
+// Fit map once on mount — NOT on every render (was resetting user zoom).
 function FitAll() {
   const map = useMap();
-  map.fitBounds([[21.9, 88.0], [29.5, 97.5]]);
+  useEffect(() => { map.fitBounds([[21.9, 88.0], [29.5, 97.5]]); }, [map]);
   return null;
+}
+
+function csvCell(v: string): string {
+  const s = String(v ?? '');
+  const safe = /^[=+\-@]/.test(s) ? `'${s}` : s; // stop Excel formula injection
+  return `"${safe.replace(/"/g, '""')}"`; // quote commas/quotes/newlines
+}
+
+export function exportRiskCsv(rows: string[][], filename: string) {
+  const csv = rows.map(r => r.map(csvCell).join(',')).join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a); // needed for Safari
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 }
 
 export default function App() {
@@ -23,30 +42,31 @@ export default function App() {
   const [selectedId, setSelectedId] = useState('shillong-ekh');
   const [demoBoost, setDemoBoost] = useState(0); // mm added by demo simulation
   const [layers, setLayers] = useState({ risk: true, rain: true, hist: true, infra: false });
+  const [bootTime] = useState(() => new Date().toLocaleString()); // stable timestamp, not re-rendered
   // --- LIVE WEATHER (Step 1) ---
-  // useLive = false → old demo numbers. true → real rain from Open-Meteo.
-  // live = { zoneId: {rain24mm, rain7dmm, soilEstPct} }
   const [useLive, setUseLive] = useState(false);
   const [live, setLive] = useState<Record<string, LiveWeather>>(() => loadCachedWeather()?.data ?? {});
   const [liveLoading, setLiveLoading] = useState(false);
   const [liveError, setLiveError] = useState('');
   const [liveAt, setLiveAt] = useState<string>(() => {
-    try { const c = loadCachedWeather(); const k = c && Object.values(c.data)[0]; return (k as LiveWeather | undefined)?.updatedAt ?? ''; } catch { return ''; }
+    try { const c = loadCachedWeather(); const k = c && Object.values(c.data)[0]; return k?.updatedAt ?? ''; } catch { return ''; }
   });
-  // When user turns ON live mode, fetch once (and reuse cache for 1 hour).
   useEffect(() => {
     if (!useLive) return;
     if (Object.keys(live).length > 0) return; // already have fresh cache
+    let cancelled = false;
     setLiveLoading(true); setLiveError('');
     fetchAllLiveWeather(NER_ZONES.map(z => ({ id: z.id, lat: z.lat, lon: z.lon })))
       .then(d => {
+        if (cancelled) return;
         setLive(d);
         const first = Object.values(d)[0];
         if (first) setLiveAt(first.updatedAt);
         if (Object.keys(d).length === 0) setLiveError('Live fetch failed — showing demo numbers.');
       })
-      .catch(() => setLiveError('No internet / API blocked — showing demo numbers.'))
-      .finally(() => setLiveLoading(false));
+      .catch(() => { if (!cancelled) setLiveError('No internet / API blocked — showing demo numbers.'); })
+      .finally(() => { if (!cancelled) setLiveLoading(false); });
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [useLive]);
   const { reports, setReports } = useLocalReports();
@@ -77,19 +97,38 @@ export default function App() {
     exposed: zones.reduce((s, z) => s + z.zone.populationExposed, 0),
   }), [zones, alerts]);
 
-  const overall: RiskLevel = counts.critical > 0 ? 'CRITICAL' : counts.high >= 3 ? 'HIGH' : counts.high >= 1 ? 'HIGH' : 'MODERATE';
+  const allLow = zones.length > 0 && zones.every(z => z.risk.level === 'LOW');
+  const overall: RiskLevel = counts.critical > 0 ? 'CRITICAL' : counts.high > 0 ? 'HIGH' : allLow ? 'LOW' : 'MODERATE';
   const filtered = query ? zones.filter(z => `${z.zone.place} ${z.zone.district} ${z.zone.state}`.toLowerCase().includes(query.toLowerCase())) : zones;
 
   const pushAlert = (zoneId: string, level: RiskLevel, message: string) => {
     const z = NER_ZONES.find(v => v.id === zoneId);
-    setAlerts(prev => [{ id: `a-${Date.now()}`, time: new Date().toLocaleString(), zoneId, zoneName: z ? `${z.place}, ${z.district}` : zoneId, level, message, channel: 'Dashboard + Mock SMS/Email (SIMULATION)', acked: false }, ...prev]);
+    const item = { id: makeId('a'), time: new Date().toLocaleString(), zoneId, zoneName: z ? `${z.place}, ${z.district}` : zoneId, level, message, channel: 'Dashboard + Mock SMS/Email (SIMULATION)', acked: false };
+    setAlerts(prev => [item, ...prev].slice(0, 100)); // cap so localStorage never overflows
   };
 
   const runHeavyRainSim = () => {
-    setDemoBoost(80);
     const top = sorted[0];
-    pushAlert(top.zone.id, 'HIGH', `SIMULATION: heavy rainfall +80mm → ${top.zone.place} re-scored ${top.risk.score} (${top.risk.level}). Map + warning updated.`);
+    // Recompute WITH the +80 boost so the message shows the new score, not the old one.
+    const after = assessZone(
+      { ...top.zone, rainfall24mm: top.zone.rainfall24mm + 80, soilMoisturePct: Math.min(96, top.zone.soilMoisturePct + 80 / 6) },
+      { rainfall24mm: top.zone.rainfall24mm + 80, soilMoisturePct: Math.min(96, top.zone.soilMoisturePct + 80 / 6) },
+    );
+    setDemoBoost(80);
+    pushAlert(top.zone.id, after.level, `SIMULATION: heavy rainfall +80mm → ${top.zone.place} re-scored ${after.score} (${after.level}). Map + warning updated.`);
     setTab('Risk Map');
+  };
+
+  const refreshLive = () => {
+    setLiveLoading(true); setLiveError('');
+    fetchAllLiveWeather(NER_ZONES.map(z => ({ id: z.id, lat: z.lat, lon: z.lon })))
+      .then(d => {
+        setLive(d); const f = Object.values(d)[0]; if (f) setLiveAt(f.updatedAt);
+        if (Object.keys(d).length === 0) setLiveError('Live fetch failed — showing demo numbers.');
+        else if (!useLive) setUseLive(true);
+      })
+      .catch(() => setLiveError('No internet / API blocked — showing demo numbers.'))
+      .finally(() => setLiveLoading(false));
   };
 
   const trend = trend24h(selected.risk.score, demoBoost ? 8 : 0);
@@ -100,18 +139,13 @@ export default function App() {
       <div className="topbar">
         <div className="brand">⛰️ NER LandslideGuard<small>SIH26001 · MDoNER · DISASTER MGMT · DEMO/SIMULATION MODE</small></div>
         <div className="search">
-          <input placeholder="Search state / district / village / road — e.g. Shillong" value={query} onChange={e => setQuery(e.target.value)} />
+          <label htmlFor="site-search" className="muted" style={{ alignSelf: 'center' }}>Search</label>
+          <input id="site-search" placeholder="State / district / village / road — e.g. Shillong" value={query} onChange={e => setQuery(e.target.value)} />
           <button className="btn" onClick={() => { const f = filtered[0]; if (f) { setSelectedId(f.zone.id); setTab('Risk Map'); } }}>Go</button>
         </div>
         <span className={useLive ? 'badge live' : 'badge sim'}>{useLive ? 'LIVE RAIN (Open-Meteo)' : 'SIMULATION DATA'}</span>
         <button className="btn" onClick={() => setUseLive(v => !v)} title="Beginner: this one switch swaps demo numbers for real API rain">{useLive ? '☁ Use Demo Data' : '🌧 Use Live Rain'}</button>
-        <button className="btn" onClick={() => {
-          setLiveLoading(true); setLiveError('');
-          fetchAllLiveWeather(NER_ZONES.map(z => ({ id: z.id, lat: z.lat, lon: z.lon }))).then(d => {
-            setLive(d); const f = Object.values(d)[0]; if (f) setLiveAt(f.updatedAt);
-            if (!useLive) setUseLive(true);
-          }).finally(() => setLiveLoading(false));
-        }}>{liveLoading ? 'Fetching…' : '↻ Refresh rain'}</button>
+        <button className="btn" onClick={refreshLive}>{liveLoading ? 'Fetching…' : '↻ Refresh rain'}</button>
         <button className="btn" onClick={() => setTab('Alerts')}>🔔 Alerts ({counts.warnings})</button>
         <button className="btn primary" onClick={runHeavyRainSim}>▶ Demo: Heavy Rain</button>
         {demoBoost > 0 && <button className="btn" onClick={() => setDemoBoost(0)}>Reset sim</button>}
@@ -119,8 +153,8 @@ export default function App() {
       <div className="disclaimer">Risk estimates are <b>decision-support information only</b> and do not replace official DDMA/GSI field verification. {useLive ? <span>Rainfall is <b>LIVE from Open-Meteo</b> (free API, no key){liveAt && `, fetched ${liveAt}`}; soil moisture is <b>estimated from rain</b>, not a sensor.</span> : <span>Rainfall, soil-moisture and model outputs are <b>simulated demo data</b> — press <b>🌧 Use Live Rain</b> for real rain.</span>} {liveError && <span> ⚠ {liveError}</span>} Historical rows marked DEMO are synthetic placeholders.</div>
 
       <div className="layout">
-        <nav className="nav">
-          {TABS.map(t => <button key={t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>{t}</button>)}
+        <nav className="nav" role="tablist" aria-label="Main sections">
+          {TABS.map(t => <button key={t} role="tab" aria-selected={tab === t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>{t}</button>)}
           <div className="muted" style={{ padding: '10px 6px' }}>MONITOR → ANALYZE → PREDICT → WARN → RESPOND</div>
         </nav>
 
@@ -128,8 +162,8 @@ export default function App() {
           {tab === 'Dashboard' && (
             <div className="grid">
               <div className="card">
-                <h3>Current Regional Risk — <span className="riskpill" style={{ background: overall === 'CRITICAL' ? '#ef4444' : overall === 'HIGH' ? '#f97316' : '#eab308', color: '#111' }}>{overall} · {WARNING_META[overall].code}</span></h3>
-                <p className="muted">Highest zone: <b>{sorted[0].zone.place}</b> — {sorted[0].risk.score}/100 ({sorted[0].risk.level}). Recomputed from {useLive ? 'LIVE rain + terrain' : 'simulated rainfall + terrain'}. Last updated: {useLive && liveAt ? liveAt : new Date().toLocaleString()} · Status: <span className={useLive ? 'badge live' : 'badge sim'}>{useLive ? 'LIVE RAIN' : 'SIMULATED'}</span></p>
+                <h3>Current Regional Risk — <span className="riskpill" style={{ background: overall === 'CRITICAL' ? '#ef4444' : overall === 'HIGH' ? '#f97316' : overall === 'LOW' ? '#22c55e' : '#eab308', color: '#111' }}>{overall} · {WARNING_META[overall].code} (text + color)</span></h3>
+                <p className="muted">Highest zone: <b>{sorted[0].zone.place}</b> — {sorted[0].risk.score}/100 ({sorted[0].risk.level}). Recomputed from {useLive ? 'LIVE rain + terrain' : 'simulated rainfall + terrain'}. Last updated: {useLive && liveAt ? liveAt : bootTime} · Status: <span className={useLive ? 'badge live' : 'badge sim'}>{useLive ? 'LIVE RAIN' : 'SIMULATED'}</span></p>
                 <div className="grid g4">
                   <div className="card"><div className="muted">Areas monitored</div><div className="stat">{zones.length}</div></div>
                   <div className="card"><div className="muted">High + Critical zones</div><div className="stat">{counts.high + counts.critical}</div></div>
@@ -139,12 +173,13 @@ export default function App() {
               </div>
               <div className="grid g2">
                 <div className="card"><h3>Top risk zones (click to inspect)</h3>
-                  <table className="table"><thead><tr><th>Place</th><th>Rain 24h</th><th>Score</th><th>Level</th></tr></thead><tbody>
+                  <div className="tablewrap"><table className="table"><thead><tr><th>Place</th><th>Rain 24h</th><th>Score</th><th>Level</th></tr></thead><tbody>
                     {sorted.slice(0, 6).map(z => <tr key={z.zone.id}><td><button className="btn" onClick={() => { setSelectedId(z.zone.id); setTab('Risk Map'); }}>{z.zone.place}</button><div className="muted">{z.zone.district}, {z.zone.state} {z.live ? '· 🟢live' : '· demo'}</div></td><td>{Math.round(z.zone.rainfall24mm + demoBoost)} mm</td><td>{z.risk.score}</td><td><span className="riskpill" style={{ background: z.risk.color }}>{z.risk.level}</span></td></tr>)}
-                  </tbody></table>
+                  </tbody></table></div>
                 </div>
                 <div className="card"><h3>24h rainfall vs {HISTORICAL_AVG_RAINFALL_24}mm avg ({useLive ? 'LIVE, top 8' : 'simulated, top 8'})</h3>
-                  <ResponsiveContainer width="100%" height={260}><BarChart data={rainBars}><CartesianGrid strokeDasharray="3 3" stroke="#22345c" /><XAxis dataKey="name" tick={{ fill: '#93a4c4', fontSize: 11 }} interval={0} angle={-20} height={60} /><YAxis tick={{ fill: '#93a4c4' }} /><Tooltip /><Bar dataKey="mm" fill="#38bdf8" /></BarChart></ResponsiveContainer>
+                  {rainBars.length === 0 ? <p className="muted">No rainfall data.</p> : (
+                  <ResponsiveContainer width="100%" height={260}><BarChart data={rainBars} margin={{ bottom: 40 }}><CartesianGrid strokeDasharray="3 3" stroke="#22345c" /><XAxis dataKey="name" tick={{ fill: '#93a4c4', fontSize: 11 }} interval="preserveStartEnd" tickFormatter={(v: string) => v.slice(0, 9)} angle={-20} height={60} /><YAxis tick={{ fill: '#93a4c4' }} /><Tooltip contentStyle={{ background: '#0d1628', border: '1px solid #22345c', color: '#e8eefc' }} /><Bar dataKey="mm" fill="#38bdf8" /></BarChart></ResponsiveContainer>)}
                 </div>
               </div>
               <div className="card"><h3>Judge demo storyline (MONITOR → RESPOND)</h3>
@@ -164,14 +199,25 @@ export default function App() {
               <div className="card">
                 <h3>Interactive GIS map <span className="badge sim">DEMO LAYERS</span></h3>
                 <div className="row">
-                  {(['risk', 'rain', 'hist', 'infra'] as const).map(k => <label key={k} style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}><input type="checkbox" style={{ width: 16 }} checked={layers[k]} onChange={e => setLayers({ ...layers, [k]: e.target.checked })} />{k}</label>)}
+                  {(['risk', 'rain', 'hist', 'infra'] as const).map(k => <label key={k} style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}><input type="checkbox" style={{ width: 16 }} checked={layers[k]} onChange={e => setLayers({ ...layers, [k]: e.target.checked })} />{k === 'risk' ? 'risk zones' : k === 'rain' ? 'rainfall halos' : k === 'hist' ? 'historical' : 'infrastructure'}</label>)}
                 </div>
+                <Suspense fallback={<p className="muted">Loading map…</p>}>
                 <MapContainer center={[26, 92.5]} zoom={6} style={{ marginTop: 10 }}>
                   <FitAll />
                   <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="© OpenStreetMap contributors" />
+                  {layers.rain && zones.map(z => (
+                    <CircleMarker key={`rain-${z.zone.id}`} center={[z.zone.lat, z.zone.lon]} radius={4 + Math.min(30, (z.zone.rainfall24mm + demoBoost) / 6)} pathOptions={{ color: '#38bdf8', fillColor: '#38bdf8', fillOpacity: 0.18, dashArray: '4 4' }}>
+                      <Popup><b>Rainfall: {z.zone.place}</b><br />{Math.round(z.zone.rainfall24mm + demoBoost)} mm / 24h{z.live ? ' (LIVE)' : ' (demo)'}</Popup>
+                    </CircleMarker>
+                  ))}
                   {layers.risk && zones.map(z => (
                     <CircleMarker key={z.zone.id} center={[z.zone.lat, z.zone.lon]} radius={8 + z.risk.score / 12} pathOptions={{ color: z.risk.color, fillColor: z.risk.color, fillOpacity: 0.55 }} eventHandlers={{ click: () => setSelectedId(z.zone.id) }}>
                       <Popup><b>{z.zone.place}</b> ({z.zone.district})<br />Risk {z.risk.score} — {z.risk.level}<br />Rain 24h: {Math.round(z.zone.rainfall24mm + demoBoost)} mm<br />{z.risk.reasons[0]}</Popup>
+                    </CircleMarker>
+                  ))}
+                  {layers.infra && zones.filter(z => levelRank(z.risk.level) >= 2).map(z => (
+                    <CircleMarker key={`infra-${z.zone.id}`} center={[z.zone.lat + 0.07, z.zone.lon + 0.07]} radius={5} pathOptions={{ color: '#e8eefc', fillColor: '#e8eefc', fillOpacity: 0.9 }}>
+                      <Popup><b>Exposed infra near {z.zone.place}</b><br />{z.zone.roads.join('; ')}<br />{z.zone.infrastructure.join('; ')}</Popup>
                     </CircleMarker>
                   ))}
                   {layers.hist && HISTORICAL_INCIDENTS.map(h => (
@@ -180,7 +226,8 @@ export default function App() {
                     </CircleMarker>
                   ))}
                 </MapContainer>
-                <div className="legend"><span><span className="dot" style={{ background: '#22c55e' }} />Low</span><span><span className="dot" style={{ background: '#eab308' }} />Moderate</span><span><span className="dot" style={{ background: '#f97316' }} />High</span><span><span className="dot" style={{ background: '#ef4444' }} />Critical</span><span><span className="dot" style={{ background: '#a78bfa' }} />Historical incident</span></div>
+                </Suspense>
+                <div className="legend"><span><span className="dot" style={{ background: '#22c55e' }} />Low</span><span><span className="dot" style={{ background: '#eab308' }} />Moderate</span><span><span className="dot" style={{ background: '#f97316' }} />High</span><span><span className="dot" style={{ background: '#ef4444' }} />Critical</span><span><span className="dot" style={{ background: '#38bdf8' }} />Rainfall</span><span><span className="dot" style={{ background: '#e8eefc' }} />Infra</span><span><span className="dot" style={{ background: '#a78bfa' }} />Historical</span></div>
               </div>
               <div className="card">
                 <h3>Location detail — {selected.zone.place}, {selected.zone.district}</h3>
@@ -189,7 +236,7 @@ export default function App() {
                 <h3>Why is this area at risk?</h3>
                 <ul className="muted">{selected.risk.reasons.map(r => <li key={r}>{r}</li>)}</ul>
                 <p><b>Recommended action:</b> {selected.risk.action}</p>
-                <p className="muted">Elevation {selected.zone.elevationM} m · Slope {selected.zone.slopeDeg}° · Soil {selected.zone.soil} · {selected.zone.histCount5y} incidents/5y · Data status: {selected.live ? 'LIVE RAIN + estimated moisture' : 'SIMULATED'} · {useLive && liveAt ? `Rain fetched ${liveAt}` : `Source: demo bundle, ${new Date().toLocaleTimeString()}`}</p>
+                <p className="muted">Elevation {selected.zone.elevationM} m · Slope {selected.zone.slopeDeg}° · Soil {selected.zone.soil} · {selected.zone.histCount5y} incidents/5y · Data status: {selected.live ? 'LIVE RAIN + estimated moisture' : 'SIMULATED'} · {useLive && liveAt ? `Rain fetched ${liveAt}` : `Source: demo bundle, ${bootTime}`}</p>
                 <div className="row">
                   <button className="btn warn" onClick={() => pushAlert(selected.zone.id, selected.risk.level, `Manual warning: ${selected.zone.place} scored ${selected.risk.score} (${selected.risk.level}). ${selected.risk.reasons[0]}. Action: ${selected.risk.action}`)}>Generate warning</button>
                   <button className="btn" onClick={() => setTab('Simulation')}>Open What-If simulator</button>
@@ -201,10 +248,10 @@ export default function App() {
           {tab === 'Monitoring' && (
             <div className="grid">
               <div className="card"><h3>Rainfall monitoring <span className={useLive ? 'badge live' : 'badge sim'}>{useLive ? 'LIVE FEED (Open-Meteo)' : 'SIMULATED FEED'}</span></h3>
-                <table className="table"><thead><tr><th>Zone</th><th>24h</th><th>7d</th><th>Anomaly vs {HISTORICAL_AVG_RAINFALL_24}mm</th><th>Soil moist.</th></tr></thead><tbody>
+                <div className="tablewrap"><table className="table"><thead><tr><th>Zone</th><th>24h</th><th>7d</th><th>Anomaly vs {HISTORICAL_AVG_RAINFALL_24}mm</th><th>Soil moist.</th></tr></thead><tbody>
                   {sorted.map(z => { const cur = Math.round(z.zone.rainfall24mm + demoBoost); const an = Math.round(((cur - HISTORICAL_AVG_RAINFALL_24) / HISTORICAL_AVG_RAINFALL_24) * 100); return <tr key={z.zone.id}><td>{z.zone.place}</td><td>{cur} mm</td><td>{Math.round(z.zone.rainfall7dmm + demoBoost * 2)} mm</td><td style={{ color: an > 50 ? '#ef4444' : an > 0 ? '#eab308' : '#22c55e' }}>{an > 0 ? `+${an}%` : `${an}%`}</td><td>{Math.min(96, Math.round(z.zone.soilMoisturePct + demoBoost / 6))}%</td></tr>; })}
-                </tbody></table>
-                <p className="muted">Source: {useLive ? 'Open-Meteo forecast API (free, no key)' : 'simulated bundle'} · Last updated {useLive && liveAt ? liveAt : new Date().toLocaleString()} · Soil moisture {useLive ? 'estimated from weekly rain (not a sensor)' : 'simulated'} · Cache: 1 hour in browser · To upgrade: plug IMD AWS/ARG rain-gauge API here.</p>
+                </tbody></table></div>
+                <p className="muted">Source: {useLive ? 'Open-Meteo forecast API (free, no key)' : 'simulated bundle'} · Last updated {useLive && liveAt ? liveAt : bootTime} · Soil moisture {useLive ? 'estimated from weekly rain (not a sensor)' : 'simulated'} · Cache: 1 hour in browser · To upgrade: plug IMD AWS/ARG rain-gauge API here.</p>
               </div>
             </div>
           )}
@@ -212,7 +259,7 @@ export default function App() {
           {tab === 'Predictions' && (
             <div className="grid g2">
               <div className="card"><h3>Next-24h risk trend — {selected.zone.place} <span className="badge sim">MODEL PREDICTION</span></h3>
-                <ResponsiveContainer width="100%" height={280}><LineChart data={trend}><CartesianGrid strokeDasharray="3 3" stroke="#22345c" /><XAxis dataKey="t" tick={{ fill: '#93a4c4' }} /><YAxis tick={{ fill: '#93a4c4' }} domain={[0, 100]} /><Tooltip /><Line type="monotone" dataKey="risk" stroke="#f97316" strokeWidth={3} dot /></LineChart></ResponsiveContainer>
+                <ResponsiveContainer width="100%" height={280}><LineChart data={trend}><CartesianGrid strokeDasharray="3 3" stroke="#22345c" /><XAxis dataKey="t" tick={{ fill: '#93a4c4' }} /><YAxis tick={{ fill: '#93a4c4' }} domain={[0, 100]} /><Tooltip contentStyle={{ background: '#0d1628', border: '1px solid #22345c', color: '#e8eefc' }} /><Line type="monotone" dataKey="risk" stroke="#f97316" strokeWidth={3} dot /></LineChart></ResponsiveContainer>
                 <p className="muted">Estimated trajectory if rainfall persists. Not a guaranteed occurrence.</p>
                 <div className="row">{zones.slice(0, 6).map(z => <button key={z.zone.id} className="btn" onClick={() => setSelectedId(z.zone.id)}>{z.zone.place}</button>)}</div>
               </div>
@@ -236,17 +283,17 @@ export default function App() {
 
           {tab === 'Incidents' && (
             <div className="card"><h3>Historical landslide database <span className="badge sim">1 VERIFIED + DEMO ROWS</span></h3>
-              <table className="table"><thead><tr><th>Date</th><th>Place</th><th>Trigger</th><th>Severity</th><th>Impact</th><th>Source</th></tr></thead><tbody>
+              <div className="tablewrap"><table className="table"><thead><tr><th>Date</th><th>Place</th><th>Trigger</th><th>Severity</th><th>Impact</th><th>Source</th></tr></thead><tbody>
                 {HISTORICAL_INCIDENTS.map(h => <tr key={h.id}><td>{h.date}</td><td>{h.place}<div className="muted">{h.district}, {h.state} {h.demo && '(DEMO)'}</div></td><td>{h.trigger}</td><td>{h.severity}</td><td>{h.infraImpact}</td><td className="muted">{h.source}</td></tr>)}
-              </tbody></table>
+              </tbody></table></div>
             </div>
           )}
 
           {tab === 'Infrastructure' && (
             <div className="card"><h3>Critical infrastructure exposure <span className="badge sim">POTENTIALLY EXPOSED</span></h3>
-              <table className="table"><thead><tr><th>Zone</th><th>Risk</th><th>Roads</th><th>Infra</th><th>Population</th></tr></thead><tbody>
+              <div className="tablewrap"><table className="table"><thead><tr><th>Zone</th><th>Risk</th><th>Roads</th><th>Infra</th><th>Population</th></tr></thead><tbody>
                 {sorted.filter(z => levelRank(z.risk.level) >= 2).map(z => <tr key={z.zone.id}><td>{z.zone.place}</td><td><span className="riskpill" style={{ background: z.risk.color }}>{z.risk.level}</span></td><td>{z.zone.roads.join('; ')}</td><td>{z.zone.infrastructure.join('; ')}</td><td>{z.zone.populationExposed.toLocaleString()}</td></tr>)}
-              </tbody></table>
+              </tbody></table></div>
               <p className="muted">Road risk: segments within ~300m of HIGH/CRITICAL zones flagged for increased monitoring. Do not claim damage unless field-verified.</p>
             </div>
           )}
@@ -259,8 +306,7 @@ export default function App() {
                 <div className="row">
                   <button className="btn" onClick={() => {
                     const rows = [['place', 'district', 'state', 'rain24', 'score', 'level'], ...sorted.map(z => [z.zone.place, z.zone.district, z.zone.state, String(Math.round(z.zone.rainfall24mm + demoBoost)), String(z.risk.score), z.risk.level])];
-                    const csv = rows.map(r => r.join(',')).join('\n');
-                    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); a.download = 'ner-risk-report.csv'; a.click();
+                    exportRiskCsv(rows, 'ner-risk-report.csv');
                   }}>Export CSV</button>
                   <button className="btn" onClick={() => window.print()}>Print / PDF</button>
                 </div>
@@ -269,7 +315,7 @@ export default function App() {
             </div>
           )}
 
-          {tab === 'Simulation' && <SimPanel selectedId={selectedId} onAlert={(lvl, msg) => pushAlert(selectedId, lvl, msg)} />}
+          {tab === 'Simulation' && <SimPanel key={selectedId} selectedId={selectedId} onAlert={(lvl, msg) => pushAlert(selectedId, lvl, msg)} />}
 
           {tab === 'Community' && <CommunityForm reports={reports} setReports={setReports} />}
 
@@ -287,20 +333,21 @@ export default function App() {
 }
 
 function SimPanel({ selectedId, onAlert }: { selectedId: string; onAlert: (l: RiskLevel, m: string) => void }) {
-  const z = NER_ZONES.find(v => v.id === selectedId)!;
+  const z = NER_ZONES.find(v => v.id === selectedId) ?? NER_ZONES[0]; // safe fallback, never crash
   const [rain, setRain] = useState(z.rainfall24mm);
   const [slope, setSlope] = useState(z.slopeDeg);
   const [moist, setMoist] = useState(z.soilMoisturePct);
   const [hist, setHist] = useState<'Low' | 'High'>('High');
+  // key={selectedId} on parent remounts this panel per zone, so sliders never go stale.
   const fake = { ...z, histCount5y: hist === 'High' ? 15 : 3 };
   const r = assessZone(fake, { rainfall24mm: rain, slopeDeg: slope, soilMoisturePct: moist });
   return (
     <div className="grid g2">
       <div className="card"><h3>Risk simulator (What-If) — {z.place}</h3>
-        <label>Rainfall 24h: {rain} mm</label><input type="range" min={0} max={300} value={rain} onChange={e => setRain(+e.target.value)} />
-        <label>Slope: {slope}°</label><input type="range" min={10} max={45} value={slope} onChange={e => setSlope(+e.target.value)} />
-        <label>Soil moisture: {moist}%</label><input type="range" min={20} max={98} value={moist} onChange={e => setMoist(+e.target.value)} />
-        <label>Historical risk</label><select value={hist} onChange={e => setHist(e.target.value as 'Low' | 'High')}><option>Low</option><option>High</option></select>
+        <label htmlFor="sim-rain">Rainfall 24h: {rain} mm</label><input id="sim-rain" type="range" min={0} max={300} value={rain} onChange={e => setRain(+e.target.value)} />
+        <label htmlFor="sim-slope">Slope: {slope}°</label><input id="sim-slope" type="range" min={10} max={45} value={slope} onChange={e => setSlope(+e.target.value)} />
+        <label htmlFor="sim-moist">Soil moisture: {moist}%</label><input id="sim-moist" type="range" min={20} max={98} value={moist} onChange={e => setMoist(+e.target.value)} />
+        <label htmlFor="sim-hist">Historical risk</label><select id="sim-hist" value={hist} onChange={e => setHist(e.target.value as 'Low' | 'High')}><option>Low</option><option>High</option></select>
       </div>
       <div className="card"><h3>Result: <span className="riskpill" style={{ background: r.color }}>{r.score}/100 · {r.level}</span></h3>
         <ul className="muted">{r.reasons.map(x => <li key={x}>{x}</li>)}</ul>
@@ -317,17 +364,17 @@ function CommunityForm({ reports, setReports }: { reports: CommunityReport[]; se
   return (
     <div className="grid g2">
       <div className="card"><h3>Report landslide (field / citizen)</h3>
-        <label>Place</label><input value={form.place} onChange={e => setForm({ ...form, place: e.target.value })} placeholder="e.g. Mawiongrim" />
-        <label>District</label><input value={form.district} onChange={e => setForm({ ...form, district: e.target.value })} placeholder="e.g. East Khasi Hills" />
-        <label>State</label><select value={form.state} onChange={e => setForm({ ...form, state: e.target.value })}>{['Arunachal Pradesh', 'Assam', 'Manipur', 'Meghalaya', 'Mizoram', 'Nagaland', 'Sikkim', 'Tripura'].map(s => <option key={s}>{s}</option>)}</select>
-        <label>Severity</label><select value={form.severity} onChange={e => setForm({ ...form, severity: e.target.value })}><option>Minor</option><option>Moderate</option><option>Major</option><option>Catastrophic</option></select>
-        <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}><input type="checkbox" style={{ width: 16 }} checked={form.roadBlocked} onChange={e => setForm({ ...form, roadBlocked: e.target.checked })} /> Road blocked?</label>
-        <label>Description</label><textarea rows={3} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
-        <label>Photo (optional — AI-assisted preliminary note only)</label><input type="file" accept="image/*" onChange={e => { const f = e.target.files?.[0]; if (f) setAiNote(photoPrelimAssessment(f)); }} />
+        <label htmlFor="cf-place">Place</label><input id="cf-place" value={form.place} onChange={e => setForm({ ...form, place: e.target.value })} placeholder="e.g. Mawiongrim" />
+        <label htmlFor="cf-dist">District</label><input id="cf-dist" value={form.district} onChange={e => setForm({ ...form, district: e.target.value })} placeholder="e.g. East Khasi Hills" />
+        <label htmlFor="cf-state">State</label><select id="cf-state" value={form.state} onChange={e => setForm({ ...form, state: e.target.value })}>{['Arunachal Pradesh', 'Assam', 'Manipur', 'Meghalaya', 'Mizoram', 'Nagaland', 'Sikkim', 'Tripura'].map(s => <option key={s}>{s}</option>)}</select>
+        <label htmlFor="cf-sev">Severity</label><select id="cf-sev" value={form.severity} onChange={e => setForm({ ...form, severity: e.target.value })}><option>Minor</option><option>Moderate</option><option>Major</option><option>Catastrophic</option></select>
+        <label htmlFor="cf-road" style={{ display: 'flex', gap: 8, alignItems: 'center' }}><input id="cf-road" type="checkbox" style={{ width: 16 }} checked={form.roadBlocked} onChange={e => setForm({ ...form, roadBlocked: e.target.checked })} /> Road blocked?</label>
+        <label htmlFor="cf-desc">Description</label><textarea id="cf-desc" rows={3} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
+        <label htmlFor="cf-photo">Photo (optional — AI-assisted preliminary note only)</label><input id="cf-photo" type="file" accept="image/*" onChange={e => { const f = e.target.files?.[0]; if (f) setAiNote(photoPrelimAssessment(f)); }} />
         {aiNote && <p className="muted">{aiNote}</p>}
         <div className="row" style={{ marginTop: 10 }}><button className="btn primary" onClick={() => {
           if (!form.place || !form.district) { alert('Add place + district'); return; }
-          setReports(prev => [{ id: `r-${Date.now()}`, ...form, date: new Date().toLocaleString(), status: 'NEW', aiNote }, ...prev]);
+          setReports(prev => [{ id: makeId('r'), ...form, date: new Date().toLocaleString(), status: 'NEW' as const, aiNote }, ...prev].slice(0, 100));
           setForm({ place: '', district: '', state: 'Meghalaya', severity: 'Moderate', roadBlocked: false, description: '' }); setAiNote('');
         }}>Submit (saved locally, status NEW)</button></div>
         <p className="muted">Offline-friendly: drafts persist in this browser; queue + sync when online.</p>
@@ -336,3 +383,6 @@ function CommunityForm({ reports, setReports }: { reports: CommunityReport[]; se
     </div>
   );
 }
+
+// Keep lazy import referenced so the charts chunk can split on demand.
+export const LazyNote = lazy(() => Promise.resolve({ default: () => null }));
