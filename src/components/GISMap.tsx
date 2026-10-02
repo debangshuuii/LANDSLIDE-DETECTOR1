@@ -35,7 +35,7 @@ export default function GISMap({ zones, layers, setLayers, selectedId, focusTick
     topo: { url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', attr: '© OpenStreetMap contributors, SRTM | style: © OpenTopoMap (CC-BY-SA)', label: t(lang, 'topo') },
     satellite: { url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', attr: 'Imagery © Esri & contributors', label: t(lang, 'satellite') },
   };
-  const [base, setBase] = useState<Base>('dark');
+  const [base, setBase] = useState<Base>('streets');
   const [filter, setFilter] = useState<Filter>('all');
   const [locateMsg, setLocateMsg] = useState('');
   const selected = zones.find(z => z.zone.id === selectedId) ?? zones[0];
