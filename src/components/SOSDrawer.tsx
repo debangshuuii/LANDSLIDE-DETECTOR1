@@ -19,6 +19,8 @@ export default function SOSDrawer({ place, district, infra, lang }: { place: str
     <>
       <button className="sos-pill" onClick={() => setOpen(v => !v)} aria-expanded={open}>{t(lang, 'sosBtn')}</button>
       {open && (
+        <>
+        <div className="sos-backdrop" onClick={() => setOpen(false)} aria-hidden="true" />
         <div className="sos-modal"><div className="card">
           <h3>{t(lang, 'sosTitle')} — {place}</h3>
           <p className="muted">{t(lang, 'sosCall')}</p>
@@ -31,6 +33,7 @@ export default function SOSDrawer({ place, district, infra, lang }: { place: str
           <p className="mono" style={{ fontSize: 12 }}>{sms}</p>
           <div className="row"><button className="btn" onClick={() => { void copy(); }}>{copied ? t(lang, 'copiedMsg') : t(lang, 'copyBtn')}</button></div>
         </div></div>
+        </>
       )}
     </>
   );

@@ -192,6 +192,7 @@ input[type="range"].sl-violet::-moz-range-thumb { background: #a78bfa; box-shado
 .reticle { animation: ret-spin 6s linear infinite, radar 2s ease-out infinite; }
 @keyframes ret-spin { to { stroke-dashoffset: -80; } }
 /* ---- SOS drawer ---- */
+.sos-backdrop { position: fixed; inset: 0; z-index: 1999; background: transparent; }
 .sos-pill { position: fixed; right: 18px; bottom: 18px; z-index: 2000; padding: 13px 20px; border-radius: 999px; background: linear-gradient(135deg, #b91c1c, #ef4444); color: #fff; font-weight: 800; border: 1px solid #fecaca; cursor: pointer; box-shadow: 0 0 24px rgba(239, 68, 68, 0.5); animation: badge-blink 2.4s ease-in-out infinite; }
 .sos-modal { position: fixed; right: 18px; bottom: 76px; z-index: 2000; width: min(360px, calc(100vw - 36px)); }
 .sos-modal .card { border-color: rgba(239, 68, 68, 0.5); }
