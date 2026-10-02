@@ -15,9 +15,9 @@ export default function WhatIfPanel({ selectedId, onAlert, lang }: { selectedId:
   return (
     <div className="grid g2">
       <div className="card"><h3>{t(lang, 'riskSim')} — {z.place}</h3>
-        <label htmlFor="sim-rain">{t(lang, 'simRain')}: {rain} mm</label><input id="sim-rain" type="range" min={0} max={300} value={rain} onChange={e => setRain(+e.target.value)} />
-        <label htmlFor="sim-slope">{t(lang, 'simSlope')}: {slope}°</label><input id="sim-slope" type="range" min={10} max={45} value={slope} onChange={e => setSlope(+e.target.value)} />
-        <label htmlFor="sim-moist">{t(lang, 'simMoist')}: {moist}%</label><input id="sim-moist" type="range" min={20} max={98} value={moist} onChange={e => setMoist(+e.target.value)} />
+        <label htmlFor="sim-rain">{t(lang, 'simRain')}: {rain} mm</label><input id="sim-rain" className="sl sl-cyan" type="range" min={0} max={300} value={rain} onChange={e => setRain(+e.target.value)} />
+        <label htmlFor="sim-slope">{t(lang, 'simSlope')}: {slope}°</label><input id="sim-slope" className="sl sl-amber" type="range" min={10} max={45} value={slope} onChange={e => setSlope(+e.target.value)} />
+        <label htmlFor="sim-moist">{t(lang, 'simMoist')}: {moist}%</label><input id="sim-moist" className="sl sl-violet" type="range" min={20} max={98} value={moist} onChange={e => setMoist(+e.target.value)} />
         <label htmlFor="sim-hist">{t(lang, 'histRisk')}</label><select id="sim-hist" value={hist} onChange={e => setHist(e.target.value as 'Low' | 'High')}><option value="Low">{t(lang, 'optLow')}</option><option value="High">{t(lang, 'optHigh')}</option></select>
         <p className="muted">{t(lang, 'idCheck')}: {r.id.note}</p>
       </div>

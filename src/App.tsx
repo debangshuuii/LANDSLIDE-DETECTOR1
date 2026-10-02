@@ -19,7 +19,31 @@ import { bulletinRef, buildFullCsv, directives, downloadTextFile } from './lib/b
 type Tab = 'Dashboard' | 'Risk Map' | 'Monitoring' | 'Predictions' | 'Alerts' | 'Incidents' | 'Infrastructure' | 'Reports' | 'Simulation' | 'Community' | 'Admin';
 
 const TABS: Tab[] = ['Dashboard', 'Risk Map', 'Monitoring', 'Predictions', 'Alerts', 'Incidents', 'Infrastructure', 'Reports', 'Simulation', 'Community', 'Admin'];
+function RiskGauge({ score, color }: { score: number; color: string }) {
+  const R = 80, C = Math.PI * R;
+  const s = Math.min(100, Math.max(0, score));
+  const off = C * (1 - s / 100);
+  const rad = ((180 - (s / 100) * 180) * Math.PI) / 180;
+  const nx = 100 + R * 0.8 * Math.cos(rad), ny = 100 - R * 0.8 * Math.sin(rad);
+  return (
+    <svg viewBox="0 0 200 115" width="220" role="img" aria-label={`Risk gauge ${score} of 100`}>
+      <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" className="gauge-arc-bg" strokeWidth="14" strokeLinecap="round" />
+      <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" className="gauge-arc-fg" stroke={color} style={{ color, strokeDasharray: C, strokeDashoffset: off }} strokeWidth="14" strokeLinecap="round" />
+      <line x1="100" y1="100" x2={nx} y2={ny} stroke={color} strokeWidth="3" />
+      <circle cx="100" cy="100" r="6" fill={color} />
+      <text x="100" y="86" textAnchor="middle" className="gauge-num" fontSize="26">{score}</text>
+    </svg>
+  );
+}
+
 const TAB_KEYS: Record<Tab, string> = { Dashboard: 'dashboard', 'Risk Map': 'riskmap', Monitoring: 'monitoring', Predictions: 'predictions', Alerts: 'alerts', Incidents: 'incidents', Infrastructure: 'infrastructure', Reports: 'reports', Simulation: 'simulation', Community: 'community', Admin: 'admin' };
+
+const NAV_GROUPS: { key: string; tabs: { id: Tab; icon: string }[] }[] = [
+  { key: 'grpSurv', tabs: [{ id: 'Dashboard', icon: '📊' }, { id: 'Risk Map', icon: '🗺️' }, { id: 'Monitoring', icon: '🌧️' }] },
+  { key: 'grpAI', tabs: [{ id: 'Predictions', icon: '📈' }, { id: 'Simulation', icon: '🧪' }, { id: 'Incidents', icon: '📜' }] },
+  { key: 'grpOps', tabs: [{ id: 'Alerts', icon: '🔔' }, { id: 'Infrastructure', icon: '🛣️' }, { id: 'Reports', icon: '📄' }] },
+  { key: 'grpField', tabs: [{ id: 'Community', icon: '📸' }, { id: 'Admin', icon: '🛡️' }] },
+];
 
 function csvCell(v: string): string {
   const s = String(v ?? '');
@@ -326,11 +350,27 @@ export default function App() {
         <button className="btn primary" onClick={runHeavyRainSim}>{t(lang, 'heavyRain')}</button>
         {demoBoost > 0 && <button className="btn" onClick={() => setDemoBoost(0)}>{t(lang, 'resetSim')}</button>}
       </div>
+      <div className="ticker" aria-hidden="true"><span className="ticker-inner">
+        {[...sorted.slice(0, 6), ...sorted.slice(0, 6)].map((z, i) => (
+          <span key={i} style={{ marginRight: 36 }}>{z.risk.level === 'CRITICAL' ? '🔴' : z.risk.level === 'HIGH' ? '🟠' : z.risk.level === 'MODERATE' ? '🟡' : '🟢'} {levelName(lang, z.risk.level)}: {z.zone.place} {Math.round(z.zone.rainfall24mm + demoBoost)}mm/24h · </span>
+        ))}
+        <span style={{ marginRight: 36 }}>{t(lang, 'tickerLive')}</span>
+      </span></div>
       <div className="disclaimer">{t(lang, 'dRisk')} {useLive ? <span>{t(lang, 'dLive')}{liveAt && `, ${tv(lang, 'fetched', liveAt)}`}; {t(lang, 'dEst')}</span> : <span>{t(lang, 'dDemo')}</span>} {liveError && <span> ⚠ {liveError}</span>} {t(lang, 'dHist')}</div>
 
       <div className="layout">
         <nav className="nav" role="tablist" aria-label="Main sections">
-          {TABS.map(tb => <button key={tb} role="tab" aria-selected={tab === tb} className={tab === tb ? 'active' : ''} onClick={() => setTab(tb)}>{t(lang, TAB_KEYS[tb])}</button>)}
+          {NAV_GROUPS.map(g => (
+            <div key={g.key}>
+              <div className="nav-group">{t(lang, g.key)}</div>
+              {g.tabs.map(tb => (
+                <button key={tb.id} role="tab" aria-selected={tab === tb.id} className={tab === tb.id ? 'active' : ''} onClick={() => setTab(tb.id)}>
+                  <span className="ico" aria-hidden="true">{tb.icon}</span>{t(lang, TAB_KEYS[tb.id])}
+                  {tb.id === 'Alerts' && counts.warnings > 0 && <span className="alert-badge">{counts.warnings}</span>}
+                </button>
+              ))}
+            </div>
+          ))}
           <div className="muted" style={{ padding: '10px 6px' }}>MONITOR → ANALYZE → PREDICT → WARN → RESPOND</div>
         </nav>
 
@@ -341,10 +381,10 @@ export default function App() {
                 <h3>{t(lang, 'regRisk')} — <span className="riskpill" style={{ background: overall === 'CRITICAL' ? '#ef4444' : overall === 'HIGH' ? '#f97316' : overall === 'LOW' ? '#22c55e' : '#eab308', color: '#111' }}>{levelName(lang, overall)} · {WARNING_META[overall].code}</span></h3>
                 <p className="muted">{t(lang, 'highest')}: <b>{sorted[0].zone.place}</b> — {sorted[0].risk.score}/100 ({levelName(lang, sorted[0].risk.level)}). {useLive ? t(lang, 'recomputedLive') : t(lang, 'recomputedSim')}. {t(lang, 'lastUpd')}: {useLive && liveAt ? liveAt : bootTime} · Status: <span className={useLive ? 'badge live' : 'badge sim'}>{useLive ? t(lang, 'liveBadge') : t(lang, 'simBadge')}</span></p>
                 <div className="grid g4">
-                  <div className="card"><div className="muted">{t(lang, 'areasMon')}</div><div className="stat">{zones.length}</div></div>
-                  <div className="card"><div className="muted">{t(lang, 'highCrit')}</div><div className="stat">{counts.high + counts.critical}</div></div>
-                  <div className="card"><div className="muted">{t(lang, 'activeWarn')}</div><div className="stat">{counts.warnings}</div></div>
-                  <div className="card"><div className="muted">{t(lang, 'popExp')}</div><div className="stat">{(counts.exposed / 1000).toFixed(0)}k</div></div>
+                  <div className="card"><div className="muted">{t(lang, 'areasMon')}</div><div className="stat mono">{zones.length}</div><div className="kpi-sub"><span className="beacon" />{t(lang, 'kpiActive')} · {new Set(zones.map(z => z.zone.state)).size} {t(lang, 'kpiStates')}</div></div>
+                  <div className={counts.high + counts.critical > 0 ? 'card glow-red' : 'card'}><div className="muted">{t(lang, 'highCrit')}</div><div className="stat mono">{counts.high + counts.critical}</div><div className="progress"><div style={{ width: `${Math.min(100, Math.round(((counts.high + counts.critical) / Math.max(1, zones.length)) * 100))}%` }} /></div><div className="kpi-sub">{counts.high + counts.critical} / {zones.length}</div></div>
+                  <div className="card"><div className="muted">{t(lang, 'activeWarn')}</div><div className="stat mono">{counts.warnings}</div><div className="kpi-sub">{t(lang, 'earlyWarn').split('(')[0]}</div></div>
+                  <div className="card"><div className="muted">{t(lang, 'popExp')}</div><div className="stat mono">{(counts.exposed / 1000).toFixed(0)}k</div><div className="kpi-sub">{zones.length} {t(lang, 'thZone')} · {t(lang, 'potExp')}</div></div>
                 </div>
               </div>
               <div className="grid g2">
@@ -377,14 +417,21 @@ export default function App() {
                 <Suspense fallback={<p className="muted">{t(lang, 'loadingMap')}</p>}>
                   <GISMap
                     zones={zones.map(z => ({ zone: z.zone, live: z.live, risk: { score: z.risk.score, level: z.risk.level, color: z.risk.color, reasons: z.risk.reasons }, rain24: z.zone.rainfall24mm + demoBoost }))}
-                    layers={layers} setLayers={setLayers} selectedId={selected.zone.id} focusTick={focusTick} demoBoost={demoBoost} lang={lang}
+                    layers={layers} setLayers={setLayers} selectedId={selected.zone.id} focusTick={focusTick} demoBoost={demoBoost} lang={lang} useLive={useLive}
+                    onToggleLive={() => setUseLive(v => !v)}
                     onSelect={(id) => { setSelectedId(id); }}
                   />
                 </Suspense>
               </div>
               <div className="card">
                 <h3>{t(lang, 'locDetail')} — {selected.zone.place}, {selected.zone.district}</h3>
-                <p><span className="riskpill" style={{ background: selected.risk.color }}>{selected.risk.score}/100 · {levelName(lang, selected.risk.level)}</span> <span className="muted">{tv(lang, 'probEst', selected.risk.probabilityPct)} · {t(lang, 'estProb')}</span></p>
+                <div className="gauge-wrap">
+                  <RiskGauge score={selected.risk.score} color={selected.risk.color} />
+                  <div>
+                    <div><span className="riskpill" style={{ background: selected.risk.color }}>{selected.risk.score}/100 · {levelName(lang, selected.risk.level)}</span></div>
+                    <div className="muted" style={{ marginTop: 6 }}>{tv(lang, 'probEst', selected.risk.probabilityPct)} · {t(lang, 'estProb')}</div>
+                  </div>
+                </div>
                 {selected.risk.factors.map(f => <div key={f.name} style={{ margin: '6px 0' }}><div className="row" style={{ justifyContent: 'space-between' }}><span>{f.name}</span><span className="muted">{f.detail} · {Math.round(f.value)}%</span></div><div className="factorbar"><div style={{ width: `${f.value}%`, background: selected.risk.color }} /></div></div>)}
                 <h3>{t(lang, 'whyRisk')}</h3>
                 <ul className="muted">{selected.risk.reasons.map(r => <li key={r}>{r}</li>)}</ul>

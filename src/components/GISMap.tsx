@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from 'react-leaflet';
 import { HISTORICAL_INCIDENTS } from '../data/historical';
+import { CORRIDORS } from '../data/corridors';
 import { levelRank } from '../lib/riskEngine';
 import { nearestZone } from '../lib/geo';
 import { t, levelName, type Lang } from '../lib/i18n';
@@ -13,9 +14,10 @@ export interface MapZone {
   rain24: number;
 }
 
-type Base = 'streets' | 'topo' | 'satellite';
+type Base = 'dark' | 'streets' | 'topo' | 'satellite';
+type Filter = 'all' | 'crit' | 'corr';
 
-export default function GISMap({ zones, layers, setLayers, selectedId, focusTick, demoBoost, onSelect, lang }: {
+export default function GISMap({ zones, layers, setLayers, selectedId, focusTick, demoBoost, onSelect, lang, useLive, onToggleLive }: {
   zones: MapZone[];
   layers: { risk: boolean; rain: boolean; hist: boolean; infra: boolean };
   setLayers: (l: { risk: boolean; rain: boolean; hist: boolean; infra: boolean }) => void;
@@ -24,18 +26,32 @@ export default function GISMap({ zones, layers, setLayers, selectedId, focusTick
   demoBoost: number;
   onSelect: (id: string) => void;
   lang: Lang;
+  useLive: boolean;
+  onToggleLive: () => void;
 }) {
   const BASES: Record<Base, { url: string; attr: string; label: string }> = {
+    dark: { url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', attr: '© OpenStreetMap contributors © CARTO', label: 'Dark' },
     streets: { url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', attr: '© OpenStreetMap contributors', label: t(lang, 'streets') },
     topo: { url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', attr: '© OpenStreetMap contributors, SRTM | style: © OpenTopoMap (CC-BY-SA)', label: t(lang, 'topo') },
     satellite: { url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', attr: 'Imagery © Esri & contributors', label: t(lang, 'satellite') },
   };
-  const [base, setBase] = useState<Base>('streets');
+  const [base, setBase] = useState<Base>('dark');
+  const [filter, setFilter] = useState<Filter>('all');
   const [locateMsg, setLocateMsg] = useState('');
   const selected = zones.find(z => z.zone.id === selectedId) ?? zones[0];
+  const corrIds = useMemo(() => new Set(CORRIDORS.flatMap(c => c.zoneIds)), []);
+  const visible = zones.filter(z =>
+    filter === 'crit' ? (z.risk.level === 'HIGH' || z.risk.level === 'CRITICAL')
+    : filter === 'corr' ? corrIds.has(z.zone.id) : true);
 
   return (
     <div>
+      <div className="row" style={{ marginBottom: 8 }}>
+        {([['all', 'filterAll'], ['crit', 'filterCrit'], ['corr', 'filterCorr']] as const).map(([v, k]) => (
+          <button key={v} className={filter === v ? 'chip active' : 'chip'} onClick={() => setFilter(v)}>{t(lang, k)}</button>
+        ))}
+        <button className={useLive ? 'chip active' : 'chip'} onClick={onToggleLive}>{t(lang, 'filterLive')}</button>
+      </div>
       <div className="row">
         {(['risk', 'rain', 'hist', 'infra'] as const).map(k => (
           <label key={k} style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
@@ -54,13 +70,13 @@ export default function GISMap({ zones, layers, setLayers, selectedId, focusTick
         <FlyToSelected lat={selected.zone.lat} lon={selected.zone.lon} focusTick={focusTick} />
         <TileLayer url={BASES[base].url} attribution={BASES[base].attr} />
         <LocateControl zones={zones} lang={lang} onFound={(msg, id) => { setLocateMsg(msg); if (id) onSelect(id); }} />
-        {layers.rain && zones.map(z => (
+        {layers.rain && visible.map(z => (
           <CircleMarker key={`rain-${z.zone.id}`} center={[z.zone.lat, z.zone.lon]} radius={4 + Math.min(30, z.rain24 / 6)} pathOptions={{ color: '#38bdf8', fillColor: '#38bdf8', fillOpacity: 0.18, dashArray: '4 4' }}>
             <Popup><b>{t(lang, 'thRain')}: {z.zone.place}</b><br />{Math.round(z.rain24)} mm / 24h{z.live ? ' (LIVE)' : ' (demo)'}</Popup>
           </CircleMarker>
         ))}
-        {layers.risk && zones.map(z => (
-          <CircleMarker key={z.zone.id} center={[z.zone.lat, z.zone.lon]} radius={(z.zone.id === selected.zone.id ? 12 : 8) + z.risk.score / 12} pathOptions={{ color: z.zone.id === selected.zone.id ? '#ffffff' : z.risk.color, fillColor: z.risk.color, fillOpacity: 0.55, weight: z.zone.id === selected.zone.id ? 3 : 1 }} eventHandlers={{ click: () => onSelect(z.zone.id) }}>
+        {layers.risk && visible.map(z => (
+          <CircleMarker key={z.zone.id} center={[z.zone.lat, z.zone.lon]} radius={(z.zone.id === selected.zone.id ? 12 : 8) + z.risk.score / 12} pathOptions={{ className: z.risk.level === 'CRITICAL' ? 'pulse-crit' : z.risk.level === 'HIGH' ? 'pulse-high' : undefined, color: z.zone.id === selected.zone.id ? '#ffffff' : z.risk.color, fillColor: z.risk.color, fillOpacity: 0.55, weight: z.zone.id === selected.zone.id ? 3 : 1 }} eventHandlers={{ click: () => onSelect(z.zone.id) }}>
             <Popup><b>{z.zone.place}</b> ({z.zone.district})<br />{t(lang, 'thRisk')} {z.risk.score} — {levelName(lang, z.risk.level)}<br />{t(lang, 'thRain')}: {Math.round(z.rain24)} mm<br />{z.risk.reasons[0]}</Popup>
           </CircleMarker>
         ))}

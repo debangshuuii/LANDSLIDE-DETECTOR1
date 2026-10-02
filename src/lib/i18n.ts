@@ -235,6 +235,17 @@ const D: Record<string, Record<Lang, string>> = {
   popBlocked: { en: 'Popup blocked — allow popups for this site, then retry Print / PDF.', hi: 'पॉपअप अवरुद्ध — इस साइट हेतु पॉपअप अनुमति दें, फिर पुनः प्रयास करें।', as: 'পপআপ বন্ধ — এই ছাইটৰ বাবে পপআপ অনুমতি দি পুনৰ চেষ্টা কৰক।', bn: 'পপআপ বন্ধ — এই সাইটের জন্য পপআপ অনুমতি দিন, তারপর আবার চেষ্টা করুন।' },
   liveTag: { en: 'LIVE', hi: 'लाइव', as: 'লাইভ', bn: 'লাইভ' },
   demoTag: { en: 'demo', hi: 'डेमो', as: 'ডেমো', bn: 'ডেমো' },
+  grpSurv: { en: '🛰️ SURVEILLANCE', hi: '🛰️ निगरानी', as: '🛰️ নিৰীক্ষণ', bn: '🛰️ নজরদারি' },
+  grpAI: { en: '🧠 AI INTELLIGENCE', hi: '🧠 AI आसूचना', as: '🧠 AI বুদ্ধিমত্তা', bn: '🧠 AI গোয়েন্দা' },
+  grpOps: { en: '🚨 CRISIS OPERATIONS', hi: '🚨 संकट अभियान', as: '🚨 সংকট অভিযান', bn: '🚨 সংকট অভিযান' },
+  grpField: { en: '🤝 FIELD & CITIZEN', hi: '🤝 क्षेत्र व नागरिक', as: '🤝 ক্ষেত্ৰ আৰু নাগৰিক', bn: '🤝 মাঠ ও নাগরিক' },
+  kpiActive: { en: '● Active', hi: '● सक्रिय', as: '● সক্ৰিয়', bn: '● সক্রিয়' },
+  kpiStates: { en: 'states covered', hi: 'राज्य कवर', as: 'ৰাজ্য সামৰি', bn: 'রাজ্য জুড়ে' },
+  filterAll: { en: '🔥 All Risks', hi: '🔥 सभी जोखिम', as: '🔥 সকলো বিপদ', bn: '🔥 সব ঝুঁকি' },
+  filterCrit: { en: '🔴 Critical Only', hi: '🔴 केवल गंभीर', as: '🔴 কেৱল সংকটজনক', bn: '🔴 শুধু সংকটজনক' },
+  filterCorr: { en: '🛣️ Highway Corridors', hi: '🛣️ राजमार्ग गलियारे', as: '🛣️ ঘাইপথ কৰিডৰ', bn: '🛣️ মহাসড়ক করিডোর' },
+  filterLive: { en: '🟢 Live Weather', hi: '🟢 लाइव मौसम', as: '🟢 লাইভ বতৰ', bn: '🟢 লাইভ আবহাওয়া' },
+  tickerLive: { en: '⚡ Live sync active', hi: '⚡ लाइव समन्वय सक्रिय', as: '⚡ লাইভ সংযোগ সক্ৰিয়', bn: '⚡ লাইভ সংযোগ সক্রিয়' },
   monSrc: { en: 'Source: {s} · Last updated {u} · Soil moisture: {m} · Cache: 1 hour in browser.', hi: 'स्रोत: {s} · अंतिम अद्यतन {u} · मृदा नमी: {m} · कैश: ब्राउज़र में 1 घंटा।', as: 'উৎস: {s} · শেহতীয়া আপডেট {u} · মাটিৰ আৰ্দ্ৰতা: {m} · কেশ্ব: ব্ৰাউজাৰত ১ ঘণ্টা।', bn: 'উৎস: {s} · সর্বশেষ হালনাগাদ {u} · মাটির আর্দ্রতা: {m} · ক্যাশ: ব্রাউজারে ১ ঘণ্টা।' },
 };
 
