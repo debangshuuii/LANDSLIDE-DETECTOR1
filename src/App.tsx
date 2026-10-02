@@ -147,7 +147,7 @@ export default function App() {
   const [layers, setLayers] = useState({ risk: true, rain: true, hist: true, infra: false });
   const [bootTime] = useState(() => new Date().toLocaleString()); // stable timestamp, not re-rendered
   // --- LIVE WEATHER (Step 1) ---
-  const [useLive, setUseLive] = useState(false);
+  const [useLive, setUseLive] = useState(true); // live rain auto-starts on every visit
   const [live, setLive] = useState<Record<string, LiveWeather>>(() => loadCachedWeather()?.data ?? {});
   const [liveLoading, setLiveLoading] = useState(false);
   const [liveError, setLiveError] = useState('');
