@@ -47,7 +47,7 @@ a { color: var(--accent); }
 .layout.nav-closed .nav .nav-group { display: none; }
 .layout.nav-closed .nav { padding-top: 0; }
 .layout.nav-closed .nav button:not(.nav-collapse) { font-size: 0; justify-content: center; padding: 10px 0; }
-.layout.nav-closed .nav-collapse { font-size: 18px; padding: 12px 0; border-color: var(--accent); box-shadow: 0 0 14px rgba(56, 189, 248, 0.3); }
+.layout.nav-closed .nav-collapse { font-size: 18px; padding: 12px 0; border-color: transparent; background: transparent; box-shadow: none; }
 /* rail mode: orbit beam hugs only the icon, not the full-width button */
 .layout.nav-closed .nav button::after {
   inset: auto; width: 42px; height: 42px; left: 50%; top: 50%;
