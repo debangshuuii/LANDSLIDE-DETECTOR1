@@ -1,12 +1,11 @@
 import { Suspense, lazy, useEffect, useMemo, useState } from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, AreaChart, Area } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, RadarChart, PolarGrid, PolarAngleAxis, Radar } from 'recharts';
 import { NER_ZONES, HISTORICAL_AVG_RAINFALL_24 } from './data/nerDistricts';
 import { HISTORICAL_INCIDENTS } from './data/historical';
 import { CORRIDORS, corridorStatus } from './data/corridors';
 import { assessZone, WARNING_META, levelRank, type RiskLevel } from './lib/riskEngine';
 import { fetchAllLiveWeather, loadCachedWeather, type LiveWeather } from './lib/weather';
 import { fetchForecast72h, forecastTotal, type HourPoint } from './lib/forecast';
-import { schematicTransect } from './lib/geo';
 import { ecoOf } from './data/eco';
 import { nbsFor, glofNote, ecoDirectives } from './lib/eco';
 import { LANGS, t, tv, levelName, type Lang } from './lib/i18n';
@@ -15,6 +14,8 @@ import GISMap from './components/GISMap';
 import WhatIfPanel from './components/WhatIfPanel';
 import CommunityForm from './components/CommunityForm';
 import CorridorMonitor from './components/CorridorMonitor';
+import TerrainSection from './components/TerrainSection';
+import SOSDrawer from './components/SOSDrawer';
 import Bulletin, { openBulletinPrint, type BulletinDoc } from './components/Bulletin';
 import { bulletinRef, buildFullCsv, directives, downloadTextFile } from './lib/bulletin';
 
@@ -304,7 +305,6 @@ export default function App() {
       alert('Live sync failed — check connection and retry.');
     }
   };
-  const transect = useMemo(() => schematicTransect(selected.zone.elevationM, selected.zone.slopeDeg), [selected.zone.elevationM, selected.zone.slopeDeg]);
   // 72h outlook for the selected zone (fetched on demand in Predictions).
   const [fc, setFc] = useState<HourPoint[]>([]);
   const [fcLoading, setFcLoading] = useState(false);
@@ -443,6 +443,15 @@ export default function App() {
                   </div>
                 </div>
                 {selected.risk.factors.map(f => <div key={f.name} style={{ margin: '6px 0' }}><div className="row" style={{ justifyContent: 'space-between' }}><span>{f.name}</span><span className="muted">{f.detail} · {Math.round(f.value)}%</span></div><div className="factorbar"><div style={{ width: `${f.value}%`, background: selected.risk.color }} /></div></div>)}
+                <h3>{t(lang, 'spiderTitle')}</h3>
+                <ResponsiveContainer width="100%" height={300}>
+                  <RadarChart data={selected.risk.factors.map(f => ({ k: f.name.length > 14 ? f.name.slice(0, 13) + '…' : f.name, v: Math.round(f.value) }))} outerRadius="72%">
+                    <PolarGrid stroke="#22345c" />
+                    <PolarAngleAxis dataKey="k" tick={{ fill: '#93a4c4', fontSize: 10 }} />
+                    <Radar dataKey="v" stroke={selected.risk.color} fill={selected.risk.color} fillOpacity={0.45} />
+                    <Tooltip contentStyle={{ background: '#0d1628', border: '1px solid #22345c', color: '#e8eefc' }} />
+                  </RadarChart>
+                </ResponsiveContainer>
                 <h3>{t(lang, 'whyRisk')}</h3>
                 <ul className="muted">{selected.risk.reasons.map(r => <li key={r}>{r}</li>)}</ul>
                 <p className="muted">{t(lang, 'idCheck')}: <b style={{ color: selected.risk.id.exceeded ? '#ef4444' : '#22c55e' }}>{selected.risk.id.exceeded ? t(lang, 'exceeded') : t(lang, 'okWord')}</b> — {selected.risk.id.note}</p>
@@ -453,8 +462,8 @@ export default function App() {
                 </>); })()}
                 <h3>{t(lang, 'nbsTitle')}</h3>
                 <ul className="muted">{nbsFor(selected.zone).map(n => <li key={n.name}><b>{n.name}</b> — {t(lang, n.whyKey)}</li>)}</ul>
-                <h3>{t(lang, 'terrainSchem')}</h3>
-                <ResponsiveContainer width="100%" height={140}><AreaChart data={transect} margin={{ top: 5, right: 5, bottom: 0, left: 0 }}><CartesianGrid strokeDasharray="3 3" stroke="#22345c" /><XAxis dataKey="x" tick={false} /><YAxis tick={{ fill: '#93a4c4', fontSize: 11 }} domain={['auto', 'auto']} /><Tooltip contentStyle={{ background: '#0d1628', border: '1px solid #22345c', color: '#e8eefc' }} /><Area type="monotone" dataKey="m" stroke="#38bdf8" fill="#38bdf8" fillOpacity={0.3} /></AreaChart></ResponsiveContainer>
+                <h3>{t(lang, 'terrainTitle')}</h3>
+                <TerrainSection slopeDeg={selected.zone.slopeDeg} moisturePct={selected.zone.soilMoisturePct} />
                 <p className="muted">{tv(lang, 'schemNote', selected.zone.elevationM)}</p>
                 <p><b>{t(lang, 'recAction')}:</b> {selected.risk.action}</p>
                 <p className="muted">{selected.zone.elevationM} m · {selected.zone.slopeDeg}° · {selected.zone.soil} · {selected.zone.histCount5y}/5y · {t(lang, 'dataStatus')}: {selected.live ? t(lang, 'liveEst') : t(lang, 'simBadge')} · {useLive && liveAt ? tv(lang, 'rainFetched', liveAt) : `${t(lang, 'srcDemo')}, ${bootTime}`}</p>
@@ -570,6 +579,7 @@ export default function App() {
           )}
         </div>
       </div>
+      <SOSDrawer place={selected.zone.place} district={selected.zone.district} infra={selected.zone.infrastructure} lang={lang} />
       <div className="footer">{t(lang, 'footer')}</div>
     </>
   );

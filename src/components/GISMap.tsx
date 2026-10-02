@@ -59,9 +59,6 @@ export default function GISMap({ zones, layers, setLayers, selectedId, focusTick
             {k === 'risk' ? t(lang, 'riskZones') : k === 'rain' ? t(lang, 'rainHalos') : k === 'hist' ? t(lang, 'historical') : t(lang, 'infraLyr')}
           </label>
         ))}
-        <label>{t(lang, 'baseMap')} <select value={base} onChange={e => setBase(e.target.value as Base)} style={{ width: 'auto' }}>
-          {(Object.keys(BASES) as Base[]).map(b => <option key={b} value={b}>{BASES[b].label}</option>)}
-        </select></label>
       </div>
       {locateMsg && <p className="muted" role="status" style={{ margin: '6px 0 0' }}>{locateMsg}</p>}
       <div style={{ position: 'relative', marginTop: 10 }}>
@@ -70,6 +67,8 @@ export default function GISMap({ zones, layers, setLayers, selectedId, focusTick
         <FlyToSelected lat={selected.zone.lat} lon={selected.zone.lon} focusTick={focusTick} />
         <TileLayer url={BASES[base].url} attribution={BASES[base].attr} />
         <LocateControl zones={zones} lang={lang} onFound={(msg, id) => { setLocateMsg(msg); if (id) onSelect(id); }} />
+        {/* target-lock reticle on the selected zone */}
+        <CircleMarker center={[selected.zone.lat, selected.zone.lon]} radius={22 + selected.risk.score / 12} pathOptions={{ className: 'reticle', color: '#fef08a', weight: 2, dashArray: '8 6', fillOpacity: 0, interactive: false }} />
         {layers.rain && visible.map(z => (
           <CircleMarker key={`rain-${z.zone.id}`} center={[z.zone.lat, z.zone.lon]} radius={4 + Math.min(30, z.rain24 / 6)} pathOptions={{ color: '#38bdf8', fillColor: '#38bdf8', fillOpacity: 0.18, dashArray: '4 4' }}>
             <Popup><b>{t(lang, 'thRain')}: {z.zone.place}</b><br />{Math.round(z.rain24)} mm / 24h{z.live ? ' (LIVE)' : ' (demo)'}</Popup>
@@ -91,8 +90,23 @@ export default function GISMap({ zones, layers, setLayers, selectedId, focusTick
           </CircleMarker>
         ))}
       </MapContainer>
+      {/* floating tactical HUD */}
+      <div className="hud hud-tr">
+        <div className="mono">{selected.zone.lat.toFixed(4)}° N, {selected.zone.lon.toFixed(4)}° E · {selected.zone.elevationM.toLocaleString()}m</div>
+        <div className="muted">{selected.zone.place} · {BASES[base].label}</div>
+        <div className="hud-btns">
+          {(Object.keys(BASES) as Base[]).map(b => (
+            <button key={b} className={base === b ? 'chip active' : 'chip'} onClick={() => setBase(b)}>{b === 'dark' ? '🌑' : b === 'satellite' ? '🛰️' : b === 'topo' ? '🏔️' : '🗺️'}</button>
+          ))}
+        </div>
       </div>
-      <div className="legend"><span><span className="dot" style={{ background: '#22c55e' }} />{levelName(lang, 'LOW')}</span><span><span className="dot" style={{ background: '#eab308' }} />{levelName(lang, 'MODERATE')}</span><span><span className="dot" style={{ background: '#f97316' }} />{levelName(lang, 'HIGH')}</span><span><span className="dot" style={{ background: '#ef4444' }} />{levelName(lang, 'CRITICAL')}</span><span><span className="dot" style={{ background: '#38bdf8' }} />{t(lang, 'rainHalos')}</span><span><span className="dot" style={{ background: '#e8eefc' }} />{t(lang, 'infraLyr')}</span><span><span className="dot" style={{ background: '#a78bfa' }} />{t(lang, 'historical')}</span></div>
+      <div className="hud hud-bl">
+        <span><span className="dot" style={{ background: '#22c55e' }} />{levelName(lang, 'LOW')}</span>{' '}
+        <span><span className="dot" style={{ background: '#eab308' }} />{levelName(lang, 'MODERATE')}</span>{' '}
+        <span><span className="dot" style={{ background: '#f97316' }} />{levelName(lang, 'HIGH')}</span>{' '}
+        <span><span className="dot" style={{ background: '#ef4444' }} />{levelName(lang, 'CRITICAL')}</span>
+      </div>
+      </div>
       <p className="muted">{t(lang, 'baseMap')}: {BASES[base].label} · {t(lang, 'mapNote')} {demoBoost > 0 ? t(lang, 'demoBoost') : ''}</p>
     </div>
   );

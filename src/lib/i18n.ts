@@ -286,6 +286,16 @@ const D: Record<string, Record<Lang, string>> = {
   rDrain: { en: 'Blocked natural gullies — pore-water pressure building', hi: 'अवरुद्ध प्राकृतिक नालियाँ — मृदा-जल दबाव बढ़ रहा', as: 'বন্ধ প্ৰাকৃতিক নলা — ছিদ্ৰ-পানীৰ চাপ বাঢ়িছে', bn: 'বন্ধ প্রাকৃতিক নালা — রন্ধ্র-পানির চাপ বাড়ছে' },
   rRoots: { en: 'Shallow roots (scrub/jhum) — negligible shear resistance', hi: 'छिछली जड़ें (झाड़ी/झूम) — नगण्य कतरनी प्रतिरोध', as: 'অগভীৰ শিপা (জোপোহা/ঝুম) — নগণ্য কৰ্তন প্ৰতিৰোধ', bn: 'অগভীর শিকড় (ঝোপ/ঝুম) — নগণ্য কর্তন প্রতিরোধ' },
   ecoSec: { en: 'Eco-mitigation directives (preventive)', hi: 'पारिस्थितिक शमन निर्देश (रोकथाम)', as: 'পৰিৱেশ উপশম নিৰ্দেশ (প্ৰতিৰোধ)', bn: 'পরিবেশ প্রশমন নির্দেশ (প্রতিরোধ)' },
+  hudCoords: { en: 'Live coords', hi: 'लाइव निर्देशांक', as: 'লাইভ স্থানাংক', bn: 'লাইভ স্থানাঙ্ক' },
+  spiderTitle: { en: '🕸️ Hazard footprint (10 factors)', hi: '🕸️ खतरा छवि (10 कारक)', as: '🕸️ বিপদৰ আকৃতি (১০ কাৰক)', bn: '🕸️ ঝুঁকির আকৃতি (১০ কারক)' },
+  terrainTitle: { en: '🏔️ Slope cross-section (schematic)', hi: '🏔️ ढलान परिच्छेद (रेखाचित्र)', as: '🏔️ ঢালৰ প্ৰস্থচ্ছেদ (আঁক)', bn: '🏔️ ঢালের প্রস্থচ্ছেদ (পরিকল্পিত)' },
+  sosBtn: { en: '🚨 Emergency', hi: '🚨 आपातकाल', as: '🚨 জৰুৰী', bn: '🚨 জরুরি' },
+  sosTitle: { en: 'Emergency Action', hi: 'आपात कार्रवाई', as: 'জৰুৰী ব্যৱস্থা', bn: 'জরুরি ব্যবস্থা' },
+  sosCall: { en: '1-tap calls', hi: '1-टैप कॉल', as: '১-টেপ কল', bn: '১-ট্যাপ কল' },
+  sosShelter: { en: 'Nearest lifelines (selected zone)', hi: 'निकटतम जीवनरेखा (चयनित क्षेत्र)', as: 'ওচৰৰ জীৱনৰেখা (বছা অঞ্চল)', bn: 'কাছের লাইফলাইন (বাছাই এলাকা)' },
+  sosSms: { en: 'Offline SMS template (no internet? text this)', hi: 'ऑफ़लाइन SMS प्रारूप (इंटरनेट नहीं? इसे भेजें)', as: 'অফলাইন SMS আৰ্হি (ইণ্টাৰনেট নাই? এইটো পঠাওক)', bn: 'অফলাইন SMS ছাঁচ (ইন্টারনেট নেই? এটি পাঠান)' },
+  copyBtn: { en: 'Copy SMS', hi: 'SMS कॉपी करें', as: 'SMS কপি কৰক', bn: 'SMS কপি করুন' },
+  copiedMsg: { en: 'Copied — paste into SMS to 1078', hi: 'कॉपी — 1078 पर SMS में पेस्ट करें', as: 'কপি হ’ল — 1078লৈ SMSত পেষ্ট কৰক', bn: 'কপি হয়েছে — 1078-এ SMS-এ পেস্ট করুন' },
 };
 
 export function t(lang: Lang, key: string): string {

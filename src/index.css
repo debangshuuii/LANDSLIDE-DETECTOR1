@@ -182,3 +182,18 @@ input[type="range"].sl-violet::-moz-range-thumb { background: #a78bfa; box-shado
   .ticker-inner { animation: none; }
   .pulse-crit, .pulse-high, .beacon, .alert-badge { animation: none; }
 }
+/* ---- Tactical HUD over map ---- */
+.hud { position: absolute; z-index: 500; background: rgba(10, 17, 32, 0.78); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; font-size: 12.5px; box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45); }
+.hud-tr { top: 58px; right: 10px; text-align: right; }
+.hud-bl { bottom: 24px; left: 10px; }
+.hud .mono { font-family: var(--font-mono); color: var(--accent); }
+.hud-btns { display: flex; gap: 6px; margin-top: 6px; justify-content: flex-end; }
+.hud-btns .chip { padding: 5px 10px; font-size: 12px; }
+.reticle { animation: ret-spin 6s linear infinite, radar 2s ease-out infinite; }
+@keyframes ret-spin { to { stroke-dashoffset: -80; } }
+/* ---- SOS drawer ---- */
+.sos-pill { position: fixed; right: 18px; bottom: 18px; z-index: 2000; padding: 13px 20px; border-radius: 999px; background: linear-gradient(135deg, #b91c1c, #ef4444); color: #fff; font-weight: 800; border: 1px solid #fecaca; cursor: pointer; box-shadow: 0 0 24px rgba(239, 68, 68, 0.5); animation: badge-blink 2.4s ease-in-out infinite; }
+.sos-modal { position: fixed; right: 18px; bottom: 76px; z-index: 2000; width: min(360px, calc(100vw - 36px)); }
+.sos-modal .card { border-color: rgba(239, 68, 68, 0.5); }
+.sos-call { display: block; text-align: center; font-size: 17px; font-weight: 800; font-family: var(--font-mono); padding: 12px; border-radius: 10px; background: #16263f; border: 1px solid var(--border); margin: 6px 0; text-decoration: none; }
+.sos-call:hover { border-color: var(--red); }
