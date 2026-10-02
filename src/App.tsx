@@ -144,6 +144,7 @@ export function makeBulletinDoc(args: {
 
 export default function App() {
   const [tab, setTab] = useState<Tab>('Dashboard');
+  const [navOpen, setNavOpen] = useState(true); // sliding nav drawer
   const [lang, setLang] = useState<Lang>('en'); // whole-site language (nav + content + risk text)
   const [query, setQuery] = useState('');
   const [selectedId, setSelectedId] = useState('shillong-ekh');
@@ -327,6 +328,7 @@ export default function App() {
   return (
     <>
       <div className="topbar">
+        <button className="btn" onClick={() => setNavOpen(v => !v)} aria-label="Toggle navigation" aria-expanded={navOpen}>☰</button>
         <div className="brand">
           <img src="/logo.png" alt="BhoomiDrishti NER logo" className="brand-logo" />
           <div>
@@ -369,20 +371,20 @@ export default function App() {
       </span></div>
       <div className="disclaimer">{t(lang, 'dRisk')} {useLive ? <span>{t(lang, 'dLive')}{liveAt && `, ${tv(lang, 'fetched', liveAt)}`}; {t(lang, 'dEst')}</span> : <span>{t(lang, 'dDemo')}</span>} {liveError && <span> ⚠ {liveError}</span>} {t(lang, 'dHist')}</div>
 
-      <div className="layout">
+      <div className={navOpen ? 'layout' : 'layout nav-closed'}>
+        {navOpen && <div className="nav-backdrop" onClick={() => setNavOpen(false)} aria-hidden="true" />}
         <nav className="nav" role="tablist" aria-label="Main sections">
           {NAV_GROUPS.map(g => (
             <div key={g.key}>
               <div className="nav-group">{t(lang, g.key)}</div>
               {g.tabs.map(tb => (
-                <button key={tb.id} role="tab" aria-selected={tab === tb.id} className={tab === tb.id ? 'active' : ''} onClick={() => setTab(tb.id)}>
+                <button key={tb.id} role="tab" aria-selected={tab === tb.id} className={tab === tb.id ? 'active' : ''} onClick={() => { setTab(tb.id); if (window.innerWidth <= 1000) setNavOpen(false); }}>
                   <span className="ico" aria-hidden="true">{tb.icon}</span>{t(lang, TAB_KEYS[tb.id])}
                   {tb.id === 'Alerts' && counts.warnings > 0 && <span className="alert-badge">{counts.warnings}</span>}
                 </button>
               ))}
             </div>
           ))}
-          <div className="muted" style={{ padding: '10px 6px' }}>MONITOR → ANALYZE → PREDICT → WARN → RESPOND</div>
         </nav>
 
         <div className="main">
