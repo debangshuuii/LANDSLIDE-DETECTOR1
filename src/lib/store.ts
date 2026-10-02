@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import type { Lang } from './i18n';
+import { t } from './i18n';
 
 export interface CommunityReport {
   id: string;
@@ -63,14 +65,14 @@ export function useLocalAlerts() {
 
 // Heuristic "AI-assisted preliminary assessment" for uploaded photos.
 // File-size + name based demo only — never a geological diagnosis.
-export function photoPrelimAssessment(file: File): string {
+export function photoPrelimAssessment(file: File, lang: Lang = 'en'): string {
   const mb = file.size / 1024 / 1024;
   const n = file.name.toLowerCase();
   const hints: string[] = [];
-  if (/(debris|mud|slide|road|crack|rock)/.test(n)) hints.push('filename suggests visible debris/road feature');
-  if (mb > 4) hints.push('high-resolution image — debris texture checkable');
-  else hints.push('low/medium resolution — request closer geotagged photo');
-  return `AI-assisted preliminary note (DEMO, not a diagnosis): ${hints.join('; ')}. Needs field verification by DDMA engineer.`;
+  if (/(debris|mud|slide|road|crack|rock)/.test(n)) hints.push(t(lang, 'aiDebris'));
+  if (mb > 4) hints.push(t(lang, 'aiHiRes'));
+  else hints.push(t(lang, 'aiLowRes'));
+  return `${t(lang, 'aiPre')}: ${hints.join('; ')}. ${t(lang, 'aiVerify')}`;
 }
 
 export function trend24h(base: number, peakShift = 0): { t: string; risk: number }[] {
