@@ -22,6 +22,30 @@ export interface RiskResult {
   reasons: string[];
   action: string;
   color: string;
+  id: IDAlert; // rainfall intensity-duration threshold check
+}
+
+// Caine (1980) global I-D curve: I = 14.82 * D^-0.39 (mm/h).
+// Crossing it means "rainfall alone is historically enough for slides".
+export interface IDAlert {
+  intensityMmh: number;
+  thresholdMmh: number;
+  exceeded: boolean;
+  note: string;
+}
+
+export function idThreshold(rain24mm: number, durationH = 24): IDAlert {
+  const intensity = Math.round((rain24mm / durationH) * 100) / 100;
+  const threshold = Math.round(14.82 * Math.pow(durationH, -0.39) * 100) / 100;
+  const exceeded = intensity >= threshold;
+  return {
+    intensityMmh: intensity,
+    thresholdMmh: threshold,
+    exceeded,
+    note: exceeded
+      ? `I-D threshold EXCEEDED: ${intensity} mm/h ≥ ${threshold} mm/h over ${durationH}h (Caine curve) — rainfall alone can trigger slides`
+      : `I-D threshold ok: ${intensity} mm/h < ${threshold} mm/h over ${durationH}h`,
+  };
 }
 
 const clamp = (v: number, a = 0, b = 100) => Math.min(b, Math.max(a, v));
@@ -70,7 +94,9 @@ export function assessZone(z: NerZone, overrides?: Partial<Pick<NerZone, 'rainfa
     : 'Monitor routinely.';
 
   const color = level === 'CRITICAL' ? '#ef4444' : level === 'HIGH' ? '#f97316' : level === 'MODERATE' ? '#eab308' : '#22c55e';
-  return { score, level, probabilityPct: score, factors, reasons, action, color };
+  const id = idThreshold(rain24);
+  if (id.exceeded) reasons.unshift(id.note);
+  return { score, level, probabilityPct: score, factors, reasons, action, color, id };
 }
 
 export function levelRank(l: RiskLevel) { return l === 'CRITICAL' ? 4 : l === 'HIGH' ? 3 : l === 'MODERATE' ? 2 : 1; }

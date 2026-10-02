@@ -1,39 +1,22 @@
 import { Suspense, lazy, useEffect, useMemo, useState } from 'react';
-import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from 'react-leaflet';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, AreaChart, Area } from 'recharts';
 import { NER_ZONES, HISTORICAL_AVG_RAINFALL_24 } from './data/nerDistricts';
 import { HISTORICAL_INCIDENTS } from './data/historical';
 import { assessZone, WARNING_META, levelRank, type RiskLevel } from './lib/riskEngine';
 import { fetchAllLiveWeather, loadCachedWeather, type LiveWeather } from './lib/weather';
-import { useLocalAlerts, useLocalReports, makeId, photoPrelimAssessment, trend24h, type CommunityReport } from './lib/store';
+import { fetchForecast72h, forecastTotal, type HourPoint } from './lib/forecast';
+import { schematicTransect } from './lib/geo';
+import { LANGS, t, type Lang } from './lib/i18n';
+import { useLocalAlerts, useLocalReports, makeId, trend24h, type CommunityReport } from './lib/store';
+import GISMap from './components/GISMap';
+import WhatIfPanel from './components/WhatIfPanel';
+import CommunityForm from './components/CommunityForm';
+import CorridorMonitor from './components/CorridorMonitor';
 
 type Tab = 'Dashboard' | 'Risk Map' | 'Monitoring' | 'Predictions' | 'Alerts' | 'Incidents' | 'Infrastructure' | 'Reports' | 'Simulation' | 'Community' | 'Admin';
 
 const TABS: Tab[] = ['Dashboard', 'Risk Map', 'Monitoring', 'Predictions', 'Alerts', 'Incidents', 'Infrastructure', 'Reports', 'Simulation', 'Community', 'Admin'];
-
-// Fit map once on mount — NOT on every render (was resetting user zoom).
-function FitAll() {
-  const map = useMap();
-  useEffect(() => { map.fitBounds([[21.9, 88.0], [29.5, 97.5]]); }, [map]);
-  return null;
-}
-
-// Fly straight to the searched/clicked zone — including the first search
-// after the map mounts (tab switch remounts the map, so a skip-first-render
-// guard would swallow exactly the flight the user asked for).
-import { useRef } from 'react';
-function FlyToSelected({ lat, lon, focusTick }: { lat: number; lon: number; focusTick: number }) {
-  const map = useMap();
-  const coords = useRef({ lat, lon });
-  coords.current = { lat, lon };
-  const lastTick = useRef(0);
-  useEffect(() => {
-    if (focusTick === 0 || focusTick === lastTick.current) return;
-    lastTick.current = focusTick;
-    map.flyTo([coords.current.lat, coords.current.lon], 11, { duration: 1.4 });
-  }, [map, focusTick]);
-  return null;
-}
+const TAB_KEYS: Record<Tab, string> = { Dashboard: 'dashboard', 'Risk Map': 'riskmap', Monitoring: 'monitoring', Predictions: 'predictions', Alerts: 'alerts', Incidents: 'incidents', Infrastructure: 'infrastructure', Reports: 'reports', Simulation: 'simulation', Community: 'community', Admin: 'admin' };
 
 function csvCell(v: string): string {
   const s = String(v ?? '');
@@ -184,15 +167,35 @@ export default function App() {
 
   const trend = trend24h(selected.risk.score, demoBoost ? 8 : 0);
   const rainBars = sorted.slice(0, 8).map(z => ({ name: z.zone.place, mm: Math.round(z.zone.rainfall24mm + demoBoost) }));
+  const [lang, setLang] = useState<Lang>('en');
+  const levelOf = (zoneId: string) => zones.find(z => z.zone.id === zoneId)?.risk.level ?? 'LOW';
+  const transect = useMemo(() => schematicTransect(selected.zone.elevationM, selected.zone.slopeDeg), [selected.zone.elevationM, selected.zone.slopeDeg]);
+  // 72h outlook for the selected zone (fetched on demand in Predictions).
+  const [fc, setFc] = useState<HourPoint[]>([]);
+  const [fcLoading, setFcLoading] = useState(false);
+  const [fcError, setFcError] = useState('');
+  const [fcFor, setFcFor] = useState('');
+  useEffect(() => {
+    if (tab !== 'Predictions') return;
+    const id = selected.zone.id;
+    if (fcFor === id && fc.length > 0) return;
+    let cancelled = false;
+    setFcLoading(true); setFcError('');
+    fetchForecast72h(selected.zone.lat, selected.zone.lon, id)
+      .then(h => { if (!cancelled) { setFc(h); setFcFor(id); } })
+      .catch(() => { if (!cancelled) setFcError('Forecast unavailable — check connection.'); })
+      .finally(() => { if (!cancelled) setFcLoading(false); });
+    return () => { cancelled = true; };
+  }, [tab, selected.zone.id, selected.zone.lat, selected.zone.lon]);
 
   return (
     <>
       <div className="topbar">
         <div className="brand">⛰️ NER LandslideGuard<small>SIH26001 · MDoNER · DISASTER MGMT · DEMO/SIMULATION MODE</small></div>
         <div className="search" style={{ position: 'relative' }}>
-          <label htmlFor="site-search" className="muted" style={{ alignSelf: 'center' }}>Search</label>
+          <label htmlFor="site-search" className="muted" style={{ alignSelf: 'center' }}>{t(lang, 'search')}</label>
           <input id="site-search" placeholder="State / district / village / road — e.g. Shillong" value={query} onChange={e => { setQuery(e.target.value); setSearchMsg(''); }} onKeyDown={e => { if (e.key === 'Enter') runSearch(); }} autoComplete="off" />
-          <button className="btn" onClick={runSearch}>Go</button>
+          <button className="btn" onClick={runSearch}>{t(lang, 'go')}</button>
           {norm(query) && scored.length > 0 && (
             <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#0d1628', border: '1px solid #22345c', borderRadius: 8, marginTop: 4, zIndex: 1200, overflow: 'hidden' }}>
               {scored.slice(0, 6).map(s => (
@@ -205,17 +208,21 @@ export default function App() {
         </div>
         {searchMsg && <span className="muted" role="status">{searchMsg}</span>}
         <span className={useLive ? 'badge live' : 'badge sim'}>{useLive ? 'LIVE RAIN (Open-Meteo)' : 'SIMULATION DATA'}</span>
-        <button className="btn" onClick={() => setUseLive(v => !v)} title="Beginner: this one switch swaps demo numbers for real API rain">{useLive ? '☁ Use Demo Data' : '🌧 Use Live Rain'}</button>
-        <button className="btn" onClick={refreshLive}>{liveLoading ? 'Fetching…' : '↻ Refresh rain'}</button>
-        <button className="btn" onClick={() => setTab('Alerts')}>🔔 Alerts ({counts.warnings})</button>
-        <button className="btn primary" onClick={runHeavyRainSim}>▶ Demo: Heavy Rain</button>
-        {demoBoost > 0 && <button className="btn" onClick={() => setDemoBoost(0)}>Reset sim</button>}
+        <label className="muted" htmlFor="lang-sel" style={{ alignSelf: 'center' }}>🌐</label>
+        <select id="lang-sel" value={lang} onChange={e => setLang(e.target.value as Lang)} style={{ width: 'auto' }} aria-label="Language">
+          {LANGS.map(l => <option key={l.code} value={l.code}>{l.label}</option>)}
+        </select>
+        <button className="btn" onClick={() => setUseLive(v => !v)} title="Beginner: this one switch swaps demo numbers for real API rain">{useLive ? t(lang, 'demoData') : t(lang, 'liveRain')}</button>
+        <button className="btn" onClick={refreshLive}>{liveLoading ? 'Fetching…' : t(lang, 'refresh')}</button>
+        <button className="btn" onClick={() => setTab('Alerts')}>🔔 {t(lang, 'alerts')} ({counts.warnings})</button>
+        <button className="btn primary" onClick={runHeavyRainSim}>{t(lang, 'heavyRain')}</button>
+        {demoBoost > 0 && <button className="btn" onClick={() => setDemoBoost(0)}>{t(lang, 'resetSim')}</button>}
       </div>
       <div className="disclaimer">Risk estimates are <b>decision-support information only</b> and do not replace official DDMA/GSI field verification. {useLive ? <span>Rainfall is <b>LIVE from Open-Meteo</b> (free API, no key){liveAt && `, fetched ${liveAt}`}; soil moisture is <b>estimated from rain</b>, not a sensor.</span> : <span>Rainfall, soil-moisture and model outputs are <b>simulated demo data</b> — press <b>🌧 Use Live Rain</b> for real rain.</span>} {liveError && <span> ⚠ {liveError}</span>} Historical rows marked DEMO are synthetic placeholders.</div>
 
       <div className="layout">
         <nav className="nav" role="tablist" aria-label="Main sections">
-          {TABS.map(t => <button key={t} role="tab" aria-selected={tab === t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>{t}</button>)}
+          {TABS.map(tb => <button key={tb} role="tab" aria-selected={tab === tb} className={tab === tb ? 'active' : ''} onClick={() => setTab(tb)}>{t(lang, TAB_KEYS[tb])}</button>)}
           <div className="muted" style={{ padding: '10px 6px' }}>MONITOR → ANALYZE → PREDICT → WARN → RESPOND</div>
         </nav>
 
@@ -258,38 +265,14 @@ export default function App() {
           {tab === 'Risk Map' && (
             <div className="grid">
               <div className="card">
-                <h3>Interactive GIS map <span className="badge sim">DEMO LAYERS</span></h3>
-                <div className="row">
-                  {(['risk', 'rain', 'hist', 'infra'] as const).map(k => <label key={k} style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}><input type="checkbox" style={{ width: 16 }} checked={layers[k]} onChange={e => setLayers({ ...layers, [k]: e.target.checked })} />{k === 'risk' ? 'risk zones' : k === 'rain' ? 'rainfall halos' : k === 'hist' ? 'historical' : 'infrastructure'}</label>)}
-                </div>
+                <h3>{t(lang, 'riskmap')} — GIS <span className="badge sim">DEMO LAYERS</span></h3>
                 <Suspense fallback={<p className="muted">Loading map…</p>}>
-                <MapContainer center={[26, 92.5]} zoom={6} style={{ marginTop: 10 }}>
-                  <FitAll />
-                  <FlyToSelected lat={selected.zone.lat} lon={selected.zone.lon} focusTick={focusTick} />
-                  <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="© OpenStreetMap contributors" />
-                  {layers.rain && zones.map(z => (
-                    <CircleMarker key={`rain-${z.zone.id}`} center={[z.zone.lat, z.zone.lon]} radius={4 + Math.min(30, (z.zone.rainfall24mm + demoBoost) / 6)} pathOptions={{ color: '#38bdf8', fillColor: '#38bdf8', fillOpacity: 0.18, dashArray: '4 4' }}>
-                      <Popup><b>Rainfall: {z.zone.place}</b><br />{Math.round(z.zone.rainfall24mm + demoBoost)} mm / 24h{z.live ? ' (LIVE)' : ' (demo)'}</Popup>
-                    </CircleMarker>
-                  ))}
-                  {layers.risk && zones.map(z => (
-                    <CircleMarker key={z.zone.id} center={[z.zone.lat, z.zone.lon]} radius={(z.zone.id === selected.zone.id ? 12 : 8) + z.risk.score / 12} pathOptions={{ color: z.zone.id === selected.zone.id ? '#ffffff' : z.risk.color, fillColor: z.risk.color, fillOpacity: 0.55, weight: z.zone.id === selected.zone.id ? 3 : 1 }} eventHandlers={{ click: () => setSelectedId(z.zone.id) }}>
-                      <Popup><b>{z.zone.place}</b> ({z.zone.district})<br />Risk {z.risk.score} — {z.risk.level}<br />Rain 24h: {Math.round(z.zone.rainfall24mm + demoBoost)} mm<br />{z.risk.reasons[0]}</Popup>
-                    </CircleMarker>
-                  ))}
-                  {layers.infra && zones.filter(z => levelRank(z.risk.level) >= 2).map(z => (
-                    <CircleMarker key={`infra-${z.zone.id}`} center={[z.zone.lat + 0.07, z.zone.lon + 0.07]} radius={5} pathOptions={{ color: '#e8eefc', fillColor: '#e8eefc', fillOpacity: 0.9 }}>
-                      <Popup><b>Exposed infra near {z.zone.place}</b><br />{z.zone.roads.join('; ')}<br />{z.zone.infrastructure.join('; ')}</Popup>
-                    </CircleMarker>
-                  ))}
-                  {layers.hist && HISTORICAL_INCIDENTS.map(h => (
-                    <CircleMarker key={h.id} center={[h.lat, h.lon]} radius={5} pathOptions={{ color: '#a78bfa', fillColor: '#a78bfa', fillOpacity: 0.8 }}>
-                      <Popup><b>Historical: {h.place}</b><br />{h.date} · {h.severity}<br />{h.trigger}<br /><i>{h.source}</i></Popup>
-                    </CircleMarker>
-                  ))}
-                </MapContainer>
+                  <GISMap
+                    zones={zones.map(z => ({ zone: z.zone, live: z.live, risk: { score: z.risk.score, level: z.risk.level, color: z.risk.color, reasons: z.risk.reasons }, rain24: z.zone.rainfall24mm + demoBoost }))}
+                    layers={layers} setLayers={setLayers} selectedId={selected.zone.id} focusTick={focusTick} demoBoost={demoBoost}
+                    onSelect={(id) => { setSelectedId(id); }}
+                  />
                 </Suspense>
-                <div className="legend"><span><span className="dot" style={{ background: '#22c55e' }} />Low</span><span><span className="dot" style={{ background: '#eab308' }} />Moderate</span><span><span className="dot" style={{ background: '#f97316' }} />High</span><span><span className="dot" style={{ background: '#ef4444' }} />Critical</span><span><span className="dot" style={{ background: '#38bdf8' }} />Rainfall</span><span><span className="dot" style={{ background: '#e8eefc' }} />Infra</span><span><span className="dot" style={{ background: '#a78bfa' }} />Historical</span></div>
               </div>
               <div className="card">
                 <h3>Location detail — {selected.zone.place}, {selected.zone.district}</h3>
@@ -297,6 +280,10 @@ export default function App() {
                 {selected.risk.factors.map(f => <div key={f.name} style={{ margin: '6px 0' }}><div className="row" style={{ justifyContent: 'space-between' }}><span>{f.name}</span><span className="muted">{f.detail} · {Math.round(f.value)}%</span></div><div className="factorbar"><div style={{ width: `${f.value}%`, background: selected.risk.color }} /></div></div>)}
                 <h3>Why is this area at risk?</h3>
                 <ul className="muted">{selected.risk.reasons.map(r => <li key={r}>{r}</li>)}</ul>
+                <p className="muted">⛰ I-D check (Caine curve): <b style={{ color: selected.risk.id.exceeded ? '#ef4444' : '#22c55e' }}>{selected.risk.id.exceeded ? 'EXCEEDED' : 'OK'}</b> — {selected.risk.id.note}</p>
+                <h3>Terrain transect (schematic, not surveyed)</h3>
+                <ResponsiveContainer width="100%" height={140}><AreaChart data={transect} margin={{ top: 5, right: 5, bottom: 0, left: 0 }}><CartesianGrid strokeDasharray="3 3" stroke="#22345c" /><XAxis dataKey="x" tick={false} /><YAxis tick={{ fill: '#93a4c4', fontSize: 11 }} domain={['auto', 'auto']} /><Tooltip contentStyle={{ background: '#0d1628', border: '1px solid #22345c', color: '#e8eefc' }} /><Area type="monotone" dataKey="m" stroke="#38bdf8" fill="#38bdf8" fillOpacity={0.3} /></AreaChart></ResponsiveContainer>
+                <p className="muted">Illustrative profile around {selected.zone.elevationM} m — shows why slope + elevation feed the model. Replace with SRTM/DEM cross-section for surveys.</p>
                 <p><b>Recommended action:</b> {selected.risk.action}</p>
                 <p className="muted">Elevation {selected.zone.elevationM} m · Slope {selected.zone.slopeDeg}° · Soil {selected.zone.soil} · {selected.zone.histCount5y} incidents/5y · Data status: {selected.live ? 'LIVE RAIN + estimated moisture' : 'SIMULATED'} · {useLive && liveAt ? `Rain fetched ${liveAt}` : `Source: demo bundle, ${bootTime}`}</p>
                 <div className="row">
@@ -329,6 +316,13 @@ export default function App() {
                 <p>Prediction: <b>{selected.risk.score}% ({selected.risk.level})</b> · Confidence: heuristic ensemble (weighted logistic, demo weights)</p>
                 <ul className="muted">{selected.risk.reasons.map(r => <li key={r}>{r}</li>)}</ul>
                 <p className="muted">Inputs: rain 24h/7d, slope, elevation, soil moisture, land cover, river distance, 5y history. For hackathon: prioritize explainability + reliability over deep learning. Train RandomForest/XGBoost on GSI+IMD data when available — see <kbd>src/lib/riskEngine.ts</kbd>.</p>
+                <h3>72h precipitation outlook — {selected.zone.place} <span className="badge live">LIVE FORECAST</span></h3>
+                {fcLoading && <p className="muted">Loading forecast…</p>}
+                {fcError && <p className="muted">{fcError}</p>}
+                {!fcLoading && !fcError && fc.length > 0 && (
+                  <><ResponsiveContainer width="100%" height={200}><BarChart data={fc}><CartesianGrid strokeDasharray="3 3" stroke="#22345c" /><XAxis dataKey="time" tick={{ fill: '#93a4c4', fontSize: 10 }} interval="preserveStartEnd" /><YAxis tick={{ fill: '#93a4c4' }} /><Tooltip contentStyle={{ background: '#0d1628', border: '1px solid #22345c', color: '#e8eefc' }} /><Bar dataKey="mm" fill="#38bdf8" /></BarChart></ResponsiveContainer>
+                  <p className="muted">72h total ≈ <b>{forecastTotal(fc)} mm</b> (Open-Meteo, 3h blocks). If this lands on saturated soil, expect the risk score to climb — re-check Monitoring.</p></>
+                )}
               </div>
             </div>
           )}
@@ -352,11 +346,14 @@ export default function App() {
           )}
 
           {tab === 'Infrastructure' && (
-            <div className="card"><h3>Critical infrastructure exposure <span className="badge sim">POTENTIALLY EXPOSED</span></h3>
+            <div className="grid">
+              <CorridorMonitor levelOf={levelOf} />
+              <div className="card"><h3>Critical infrastructure exposure <span className="badge sim">POTENTIALLY EXPOSED</span></h3>
               <div className="tablewrap"><table className="table"><thead><tr><th>Zone</th><th>Risk</th><th>Roads</th><th>Infra</th><th>Population</th></tr></thead><tbody>
                 {sorted.filter(z => levelRank(z.risk.level) >= 2).map(z => <tr key={z.zone.id}><td>{z.zone.place}</td><td><span className="riskpill" style={{ background: z.risk.color }}>{z.risk.level}</span></td><td>{z.zone.roads.join('; ')}</td><td>{z.zone.infrastructure.join('; ')}</td><td>{z.zone.populationExposed.toLocaleString()}</td></tr>)}
               </tbody></table></div>
               <p className="muted">Road risk: segments within ~300m of HIGH/CRITICAL zones flagged for increased monitoring. Do not claim damage unless field-verified.</p>
+              </div>
             </div>
           )}
 
@@ -377,7 +374,7 @@ export default function App() {
             </div>
           )}
 
-          {tab === 'Simulation' && <SimPanel key={selectedId} selectedId={selectedId} onAlert={(lvl, msg) => pushAlert(selectedId, lvl, msg)} />}
+          {tab === 'Simulation' && <WhatIfPanel key={selectedId} selectedId={selectedId} onAlert={(lvl, msg) => pushAlert(selectedId, lvl, msg)} />}
 
           {tab === 'Community' && <CommunityForm reports={reports} setReports={setReports} />}
 
@@ -393,58 +390,3 @@ export default function App() {
     </>
   );
 }
-
-function SimPanel({ selectedId, onAlert }: { selectedId: string; onAlert: (l: RiskLevel, m: string) => void }) {
-  const z = NER_ZONES.find(v => v.id === selectedId) ?? NER_ZONES[0]; // safe fallback, never crash
-  const [rain, setRain] = useState(z.rainfall24mm);
-  const [slope, setSlope] = useState(z.slopeDeg);
-  const [moist, setMoist] = useState(z.soilMoisturePct);
-  const [hist, setHist] = useState<'Low' | 'High'>('High');
-  // key={selectedId} on parent remounts this panel per zone, so sliders never go stale.
-  const fake = { ...z, histCount5y: hist === 'High' ? 15 : 3 };
-  const r = assessZone(fake, { rainfall24mm: rain, slopeDeg: slope, soilMoisturePct: moist });
-  return (
-    <div className="grid g2">
-      <div className="card"><h3>Risk simulator (What-If) — {z.place}</h3>
-        <label htmlFor="sim-rain">Rainfall 24h: {rain} mm</label><input id="sim-rain" type="range" min={0} max={300} value={rain} onChange={e => setRain(+e.target.value)} />
-        <label htmlFor="sim-slope">Slope: {slope}°</label><input id="sim-slope" type="range" min={10} max={45} value={slope} onChange={e => setSlope(+e.target.value)} />
-        <label htmlFor="sim-moist">Soil moisture: {moist}%</label><input id="sim-moist" type="range" min={20} max={98} value={moist} onChange={e => setMoist(+e.target.value)} />
-        <label htmlFor="sim-hist">Historical risk</label><select id="sim-hist" value={hist} onChange={e => setHist(e.target.value as 'Low' | 'High')}><option>Low</option><option>High</option></select>
-      </div>
-      <div className="card"><h3>Result: <span className="riskpill" style={{ background: r.color }}>{r.score}/100 · {r.level}</span></h3>
-        <ul className="muted">{r.reasons.map(x => <li key={x}>{x}</li>)}</ul>
-        <p><b>Action:</b> {r.action}</p>
-        <button className="btn warn" onClick={() => onAlert(r.level, `What-If sim @ ${z.place}: rain ${rain}mm, slope ${slope}°, moisture ${moist}% → ${r.score} (${r.level}).`)}>Push as warning</button>
-      </div>
-    </div>
-  );
-}
-
-function CommunityForm({ reports, setReports }: { reports: CommunityReport[]; setReports: (fn: (p: CommunityReport[]) => CommunityReport[]) => void }) {
-  const [form, setForm] = useState({ place: '', district: '', state: 'Meghalaya', severity: 'Moderate', roadBlocked: false, description: '' });
-  const [aiNote, setAiNote] = useState('');
-  return (
-    <div className="grid g2">
-      <div className="card"><h3>Report landslide (field / citizen)</h3>
-        <label htmlFor="cf-place">Place</label><input id="cf-place" value={form.place} onChange={e => setForm({ ...form, place: e.target.value })} placeholder="e.g. Mawiongrim" />
-        <label htmlFor="cf-dist">District</label><input id="cf-dist" value={form.district} onChange={e => setForm({ ...form, district: e.target.value })} placeholder="e.g. East Khasi Hills" />
-        <label htmlFor="cf-state">State</label><select id="cf-state" value={form.state} onChange={e => setForm({ ...form, state: e.target.value })}>{['Arunachal Pradesh', 'Assam', 'Manipur', 'Meghalaya', 'Mizoram', 'Nagaland', 'Sikkim', 'Tripura'].map(s => <option key={s}>{s}</option>)}</select>
-        <label htmlFor="cf-sev">Severity</label><select id="cf-sev" value={form.severity} onChange={e => setForm({ ...form, severity: e.target.value })}><option>Minor</option><option>Moderate</option><option>Major</option><option>Catastrophic</option></select>
-        <label htmlFor="cf-road" style={{ display: 'flex', gap: 8, alignItems: 'center' }}><input id="cf-road" type="checkbox" style={{ width: 16 }} checked={form.roadBlocked} onChange={e => setForm({ ...form, roadBlocked: e.target.checked })} /> Road blocked?</label>
-        <label htmlFor="cf-desc">Description</label><textarea id="cf-desc" rows={3} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
-        <label htmlFor="cf-photo">Photo (optional — AI-assisted preliminary note only)</label><input id="cf-photo" type="file" accept="image/*" onChange={e => { const f = e.target.files?.[0]; if (f) setAiNote(photoPrelimAssessment(f)); }} />
-        {aiNote && <p className="muted">{aiNote}</p>}
-        <div className="row" style={{ marginTop: 10 }}><button className="btn primary" onClick={() => {
-          if (!form.place || !form.district) { alert('Add place + district'); return; }
-          setReports(prev => [{ id: makeId('r'), ...form, date: new Date().toLocaleString(), status: 'NEW' as const, aiNote }, ...prev].slice(0, 100));
-          setForm({ place: '', district: '', state: 'Meghalaya', severity: 'Moderate', roadBlocked: false, description: '' }); setAiNote('');
-        }}>Submit (saved locally, status NEW)</button></div>
-        <p className="muted">Offline-friendly: drafts persist in this browser; queue + sync when online.</p>
-      </div>
-      <div className="card"><h3>Submitted ({reports.length})</h3>{reports.map(r => <div key={r.id} className="card" style={{ marginTop: 8 }}><b>{r.place}</b> <span className="badge">{r.status}</span><p className="muted">{r.district}, {r.state} · {r.severity}</p></div>)}</div>
-    </div>
-  );
-}
-
-// Keep lazy import referenced so the charts chunk can split on demand.
-export const LazyNote = lazy(() => Promise.resolve({ default: () => null }));
