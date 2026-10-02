@@ -25,7 +25,7 @@ export interface BulletinZoneRow {
 
 export function bulletinRef(at = new Date()): string {
   const p = (n: number) => String(n).padStart(2, '0');
-  return `LG-NER/${at.getFullYear()}/BUL-${at.getFullYear()}${p(at.getMonth() + 1)}${p(at.getDate())}-${p(at.getHours())}${p(at.getMinutes())}`;
+  return `BD-NER/${at.getFullYear()}/BUL-${at.getFullYear()}${p(at.getMonth() + 1)}${p(at.getDate())}-${p(at.getHours())}${p(at.getMinutes())}`;
 }
 
 export function bannerFor(overall: 'LOW' | 'MODERATE' | 'HIGH' | 'CRITICAL'): { label: string; color: string } {
@@ -77,7 +77,7 @@ export function csvEscape(v: string | number): string {
 
 export function buildFullCsv(meta: { at: string; zones: number; severe: number; source: string }, rows: BulletinZoneRow[]): string {
   const lines: string[] = [
-    [csvEscape('NER LandslideGuard — Risk Register (audit export)'), ''].join(','),
+    [csvEscape('BhoomiDrishti NER — Risk Register (audit export)'), ''].join(','),
     [csvEscape('Generated At'), csvEscape(meta.at)].join(','),
     [csvEscape('Monitored Zones'), csvEscape(String(meta.zones))].join(','),
     [csvEscape('Severe Threat Count (HIGH+CRITICAL)'), csvEscape(String(meta.severe))].join(','),

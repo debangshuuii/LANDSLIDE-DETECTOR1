@@ -195,7 +195,7 @@ const D: Record<string, Record<Lang, string>> = {
   stRejected: { en: 'REJECTED', hi: 'अस्वीकृत', as: 'নাকচ', bn: 'বাতিল' },
   stResolved: { en: 'RESOLVED', hi: 'समाधानित', as: 'সমাধান', bn: 'সমাধান' },
   // footer + misc
-  footer: { en: 'NER LandslideGuard · OpenStreetMap tiles, simulated IMD/GSI stand-ins · Auth/DB: localStorage mock · “Potentially exposed”, never “damaged”, unless verified.', hi: 'NER LandslideGuard · OpenStreetMap टाइलें, सिमुलेटेड IMD/GSI · Auth/DB: स्थानीय मॉक · सत्यापन बिना “क्षतिग्रस्त” न कहें।', as: 'NER LandslideGuard · OpenStreetMap টাইল, অনুকৰণমূলক IMD/GSI · Auth/DB: স্থানীয় মক · পৰীক্ষা নকৰাকৈ “ক্ষতিগ্ৰস্ত” নক’ব।', bn: 'NER LandslideGuard · OpenStreetMap টাইল, সিমুলেটেড IMD/GSI · Auth/DB: স্থানীয় মক · যাচাই ছাড়া “ক্ষতিগ্রস্ত” বলবেন না।' },
+  footer: { en: 'BhoomiDrishti NER · OpenStreetMap tiles, simulated IMD/GSI stand-ins · Auth/DB: localStorage mock · “Potentially exposed”, never “damaged”, unless verified.', hi: 'BhoomiDrishti NER · OpenStreetMap टाइलें, सिमुलेटेड IMD/GSI · Auth/DB: स्थानीय मॉक · सत्यापन बिना “क्षतिग्रस्त” न कहें।', as: 'BhoomiDrishti NER · OpenStreetMap টাইল, অনুকৰণমূলক IMD/GSI · Auth/DB: স্থানীয় মক · পৰীক্ষা নকৰাকৈ “ক্ষতিগ্ৰস্ত” নক’ব।', bn: 'BhoomiDrishti NER · OpenStreetMap টাইল, সিমুলেটেড IMD/GSI · Auth/DB: স্থানীয় মক · যাচাই ছাড়া “ক্ষতিগ্রস্ত” বলবেন না।' },
   loadingMap: { en: 'Loading map…', hi: 'मानचित्र लोड हो रहा…', as: 'মানচিত্ৰ আহি আছে…', bn: 'মানচিত্র আসছে…' },
   noData: { en: 'No rainfall data.', hi: 'वर्षा डेटा नहीं।', as: 'বৰষুণৰ তথ্য নাই।', bn: 'বৃষ্টির তথ্য নেই।' },
   // levels + warning labels

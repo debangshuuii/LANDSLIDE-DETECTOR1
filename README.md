@@ -1,4 +1,4 @@
-# NER LandslideGuard — 
+# BhoomiDrishti NER 
 
 **AI-Based Early Warning and Landslide Risk Monitoring System for North Eastern Region (NER)**
 Org: Ministry of Development of North Eastern Region (MDoNER) · Domain: Disaster Management.

@@ -3,7 +3,7 @@
 
 export interface HourPoint { time: string; mm: number }
 
-const F_KEY = 'landslideguard-forecast72-v1';
+const F_KEY = 'bhoomi-forecast72-v1';
 const F_MS = 60 * 60 * 1000;
 
 function loadF(key: string): { at: number; hours: HourPoint[] } | null {

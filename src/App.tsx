@@ -323,7 +323,7 @@ export default function App() {
   return (
     <>
       <div className="topbar">
-        <div className="brand">⛰️ NER LandslideGuard<small>MDoNER · DISASTER MGMT · DEMO/SIMULATION MODE</small></div>
+        <div className="brand"><img src="logo.png" alt="BhoomiDrishti NER logo" className="brand-logo" />BhoomiDrishti<small>NER · MDoNER · DISASTER MGMT · DEMO/SIMULATION MODE</small></div>
         <div className="search" style={{ position: 'relative' }}>
           <label htmlFor="site-search" className="muted" style={{ alignSelf: 'center' }}>{t(lang, 'search')}</label>
           <input id="site-search" placeholder="State / district / village / road — e.g. Shillong" value={query} onChange={e => { setQuery(e.target.value); setSearchMsg(''); }} onKeyDown={e => { if (e.key === 'Enter') runSearch(); }} autoComplete="off" />

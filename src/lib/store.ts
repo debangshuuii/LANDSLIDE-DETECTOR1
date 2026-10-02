@@ -27,8 +27,8 @@ export interface AlertItem {
   acked: boolean;
 }
 
-const R_KEY = 'landslideguard-reports-v1';
-const A_KEY = 'landslideguard-alerts-v1';
+const R_KEY = 'bhoomi-reports-v1';
+const A_KEY = 'bhoomi-alerts-v1';
 const MAX_ITEMS = 100;
 
 function readArray(key: string): unknown[] {

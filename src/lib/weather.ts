@@ -10,7 +10,7 @@ export interface LiveWeather {
   updatedAt: string;  // when we fetched
 }
 
-const CACHE_KEY = 'landslideguard-live-weather-v1';
+const CACHE_KEY = 'bhoomi-live-weather-v1';
 const CACHE_MS = 60 * 60 * 1000; // 1 hour — don't spam the API
 
 interface CacheShape { at: number; data: Record<string, LiveWeather> }
