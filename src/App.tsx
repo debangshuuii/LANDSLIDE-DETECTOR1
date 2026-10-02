@@ -579,7 +579,7 @@ export default function App() {
           )}
         </div>
       </div>
-      <SOSDrawer place={selected.zone.place} district={selected.zone.district} infra={selected.zone.infrastructure} lang={lang} />
+      <SOSDrawer place={selected.zone.place} district={selected.zone.district} infra={selected.zone.infrastructure} rainMm={selected.zone.rainfall24mm + demoBoost} live={selected.live} lang={lang} />
       <div className="footer">{t(lang, 'footer')}</div>
     </>
   );

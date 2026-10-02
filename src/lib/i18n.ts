@@ -294,6 +294,12 @@ const D: Record<string, Record<Lang, string>> = {
   sosCall: { en: '1-tap calls', hi: '1-टैप कॉल', as: '১-টেপ কল', bn: '১-ট্যাপ কল' },
   sosShelter: { en: 'Nearest lifelines (selected zone)', hi: 'निकटतम जीवनरेखा (चयनित क्षेत्र)', as: 'ওচৰৰ জীৱনৰেখা (বছা অঞ্চল)', bn: 'কাছের লাইফলাইন (বাছাই এলাকা)' },
   sosSms: { en: 'Offline SMS template (no internet? text this)', hi: 'ऑफ़लाइन SMS प्रारूप (इंटरनेट नहीं? इसे भेजें)', as: 'অফলাইন SMS আৰ্হি (ইণ্টাৰনেট নাই? এইটো পঠাওক)', bn: 'অফলাইন SMS ছাঁচ (ইন্টারনেট নেই? এটি পাঠান)' },
+  smsRoad: { en: 'Road status', hi: 'सड़क स्थिति', as: 'পথৰ অৱস্থা', bn: 'সড়কের অবস্থা' },
+  smsCas: { en: 'Casualties', hi: 'हताहत', as: 'হতাহত', bn: 'হতাহত' },
+  smsStrand: { en: 'People stranded', hi: 'फँसे लोग', as: 'আৱদ্ধ লোক', bn: 'আটকে পড়া মানুষ' },
+  smsCb: { en: 'Callback number', hi: 'संपर्क नंबर', as: 'যোগাযোগ নম্বৰ', bn: 'যোগাযোগ নম্বর' },
+  smsName: { en: 'Your name', hi: 'आपका नाम', as: 'আপোনাৰ নাম', bn: 'আপনার নাম' },
+  smsUnknown: { en: 'Unknown', hi: 'अज्ञात', as: 'অজ্ঞাত', bn: 'অজানা' },
   copyBtn: { en: 'Copy SMS', hi: 'SMS कॉपी करें', as: 'SMS কপি কৰক', bn: 'SMS কপি করুন' },
   copiedMsg: { en: 'Copied — paste into SMS to 1078', hi: 'कॉपी — 1078 पर SMS में पेस्ट करें', as: 'কপি হ’ল — 1078লৈ SMSত পেষ্ট কৰক', bn: 'কপি হয়েছে — 1078-এ SMS-এ পেস্ট করুন' },
 };
