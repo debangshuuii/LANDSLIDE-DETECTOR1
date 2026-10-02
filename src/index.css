@@ -150,3 +150,25 @@ input[type="range"].sl-violet::-moz-range-thumb { background: #a78bfa; box-shado
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: #0b1220; }
 ::-webkit-scrollbar-thumb { background: #22345c; border-radius: 99px; }
+/* ---- Live orbiting hover glow (damped): a soft beam circles the hovered option ---- */
+@property --ha { syntax: '<angle>'; initial-value: 0deg; inherits: false; }
+@keyframes orbit { to { --ha: 360deg; } }
+@media (hover: hover) {
+  .card, .nav button, .btn, .chip { position: relative; transition: transform 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease; }
+  .card::after, .nav button::after, .btn::after, .chip::after {
+    content: ""; position: absolute; inset: -1px; border-radius: inherit; padding: 1.5px;
+    background: conic-gradient(from var(--ha, 0deg), transparent 0 68%, rgba(56, 189, 248, 0.85) 84%, rgba(232, 238, 252, 0.9) 88%, transparent 96%);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor; mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0); mask-composite: exclude;
+    opacity: 0; transition: opacity 0.35s ease; pointer-events: none;
+    filter: drop-shadow(0 0 6px rgba(56, 189, 248, 0.5));
+  }
+  .card:hover, .chip:hover { transform: translateY(-2px); }
+  .card:hover::after, .nav button:hover::after, .btn:hover::after, .chip:hover::after { opacity: 1; animation: orbit 2.8s linear infinite; }
+  .card:hover { border-color: rgba(56, 189, 248, 0.45); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .card::after, .nav button::after, .btn::after, .chip::after { animation: none !important; }
+  .ticker-inner { animation: none; }
+  .pulse-crit, .pulse-high, .beacon, .alert-badge { animation: none; }
+}
