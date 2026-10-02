@@ -218,6 +218,7 @@ export default function App() {
   const goToZone = (id: string) => {
     setSelectedId(id);
     setSearchMsg('');
+    setQuery(''); // dismiss the suggestion list once a place is picked
     setFocusTick(t => t + 1); // direct zoom-in, even right after tab switch remount
     setTab('Risk Map'); // FlyToSelected pans/zooms the map there
   };

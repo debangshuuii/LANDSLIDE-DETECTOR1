@@ -194,7 +194,7 @@ input[type="range"].sl-violet::-moz-range-thumb { background: #a78bfa; box-shado
 /* ---- SOS drawer ---- */
 .sos-backdrop { position: fixed; inset: 0; z-index: 1999; background: transparent; }
 .sos-pill { position: fixed; right: 18px; bottom: 18px; z-index: 2000; padding: 13px 20px; border-radius: 999px; background: linear-gradient(135deg, #b91c1c, #ef4444); color: #fff; font-weight: 800; border: 1px solid #fecaca; cursor: pointer; box-shadow: 0 0 24px rgba(239, 68, 68, 0.5); animation: badge-blink 2.4s ease-in-out infinite; }
-.sos-modal { position: fixed; right: 18px; bottom: 76px; z-index: 2000; width: min(360px, calc(100vw - 36px)); }
+.sos-modal { position: fixed; right: 18px; bottom: 76px; z-index: 2000; width: min(360px, calc(100vw - 36px)); max-height: calc(100vh - 100px); max-height: calc(100dvh - 100px); overflow-y: auto; }
 .sos-modal .card { border-color: rgba(239, 68, 68, 0.5); }
 .sos-call { display: block; text-align: center; font-size: 17px; font-weight: 800; font-family: var(--font-mono); padding: 12px; border-radius: 10px; background: #16263f; border: 1px solid var(--border); margin: 6px 0; text-decoration: none; }
 .sos-call:hover { border-color: var(--red); }
