@@ -15,9 +15,12 @@
 body { margin: 0; background: var(--bg); color: var(--text); font-family: Inter, system-ui, Segoe UI, Roboto, Arial, sans-serif; }
 a { color: var(--accent); }
 .topbar { display: flex; align-items: center; gap: 12px; padding: 12px 18px; background: #0d1628; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 1000; flex-wrap: wrap; }
-.brand { font-weight: 800; letter-spacing: 0.3px; font-size: 18px; display: flex; align-items: center; gap: 10px; }
-.brand-logo { height: 40px; width: 40px; object-fit: contain; border-radius: 10px; box-shadow: 0 0 14px rgba(56, 189, 248, 0.35); }
-.brand small { display: block; font-weight: 500; color: var(--muted); font-size: 11px; letter-spacing: 0.6px; }
+.brand { font-weight: 800; letter-spacing: 0.3px; font-size: 18px; display: flex; align-items: center; gap: 12px; }
+.brand-logo { height: 42px; width: 42px; object-fit: cover; border-radius: 10px; box-shadow: 0 0 16px rgba(56, 189, 248, 0.4), 0 0 0 1px rgba(56, 189, 248, 0.35); transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1); }
+.brand-logo:hover { transform: scale(1.08) rotate(-1deg); }
+.brand-title { font-family: 'Outfit', sans-serif; font-size: 19px; font-weight: 800; background: linear-gradient(135deg, #ffffff 0%, #38bdf8 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.brand-sub { margin-left: 6px; font-size: 11px; padding: 2px 7px; background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.4); color: #38bdf8; border-radius: 5px; font-weight: 700; letter-spacing: 0.6px; vertical-align: middle; }
+.brand small { display: block; font-weight: 500; color: var(--muted); font-size: 10px; letter-spacing: 0.6px; margin-top: 1px; }
 .search { flex: 1; min-width: 200px; display: flex; gap: 8px; }
 .search input { flex: 1; padding: 9px 12px; border-radius: 8px; border: 1px solid var(--border); background: #0a1326; color: var(--text); }
 .btn { padding: 9px 14px; border-radius: 8px; border: 1px solid var(--border); background: #16263f; color: var(--text); cursor: pointer; font-weight: 600; }

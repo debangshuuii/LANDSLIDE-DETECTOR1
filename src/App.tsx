@@ -7,6 +7,8 @@ import { assessZone, WARNING_META, levelRank, type RiskLevel } from './lib/riskE
 import { fetchAllLiveWeather, loadCachedWeather, type LiveWeather } from './lib/weather';
 import { fetchForecast72h, forecastTotal, type HourPoint } from './lib/forecast';
 import { schematicTransect } from './lib/geo';
+import { ecoOf } from './data/eco';
+import { nbsFor, glofNote, ecoDirectives } from './lib/eco';
 import { LANGS, t, tv, levelName, type Lang } from './lib/i18n';
 import { useLocalAlerts, useLocalReports, makeId, trend24h, type CommunityReport } from './lib/store';
 import GISMap from './components/GISMap';
@@ -134,6 +136,7 @@ export function makeBulletinDoc(args: {
     }),
     corridors: CORRIDORS.map(c => ({ corridor: c.corridor, name: c.name, status: corridorStatus(c.zoneIds.map(lvl)), bypass: c.bypass })),
     directives: directives(overall, sorted[0].zone.place),
+    eco: ecoDirectives('en', sorted.filter(z => z.risk.level === 'HIGH' || z.risk.level === 'CRITICAL').map(z => z.zone.place)),
     communityCount,
   };
 }
@@ -323,7 +326,14 @@ export default function App() {
   return (
     <>
       <div className="topbar">
-        <div className="brand"><img src="logo.png" alt="BhoomiDrishti NER logo" className="brand-logo" />BhoomiDrishti<small>NER · MDoNER · DISASTER MGMT · DEMO/SIMULATION MODE</small></div>
+        <div className="brand">
+          <img src="/logo.png" alt="BhoomiDrishti NER logo" className="brand-logo" />
+          <div>
+            <span className="brand-title">BhoomiDrishti</span>
+            <span className="brand-sub">NER</span>
+            <small>MDoNER · EARLY WARNING &amp; HAZARD INTELLIGENCE</small>
+          </div>
+        </div>
         <div className="search" style={{ position: 'relative' }}>
           <label htmlFor="site-search" className="muted" style={{ alignSelf: 'center' }}>{t(lang, 'search')}</label>
           <input id="site-search" placeholder="State / district / village / road — e.g. Shillong" value={query} onChange={e => { setQuery(e.target.value); setSearchMsg(''); }} onKeyDown={e => { if (e.key === 'Enter') runSearch(); }} autoComplete="off" />
@@ -436,6 +446,13 @@ export default function App() {
                 <h3>{t(lang, 'whyRisk')}</h3>
                 <ul className="muted">{selected.risk.reasons.map(r => <li key={r}>{r}</li>)}</ul>
                 <p className="muted">{t(lang, 'idCheck')}: <b style={{ color: selected.risk.id.exceeded ? '#ef4444' : '#22c55e' }}>{selected.risk.id.exceeded ? t(lang, 'exceeded') : t(lang, 'okWord')}</b> — {selected.risk.id.note}</p>
+                <h3>{t(lang, 'ecoHealth')} — {selected.zone.place}</h3>
+                {(() => { const e = ecoOf(selected.zone.id); const g = glofNote(selected.zone.id, lang); return (<>
+                  <p className="muted">{t(lang, 'canopy')}: <b>{e.canopyPct}%</b> · {t(lang, 'roots')}: <b>{e.roots === 'Deep' ? t(lang, 'rtDeep') : e.roots === 'Mixed' ? t(lang, 'rtMixed') : t(lang, 'rtShallow')}</b> · {t(lang, 'drainage')}: <b>{e.drainage === 'Free' ? t(lang, 'drFree') : e.drainage === 'Partial' ? t(lang, 'drPartial') : t(lang, 'drBlocked')}</b></p>
+                  {g && <p className="muted">{g}</p>}
+                </>); })()}
+                <h3>{t(lang, 'nbsTitle')}</h3>
+                <ul className="muted">{nbsFor(selected.zone).map(n => <li key={n.name}><b>{n.name}</b> — {t(lang, n.whyKey)}</li>)}</ul>
                 <h3>{t(lang, 'terrainSchem')}</h3>
                 <ResponsiveContainer width="100%" height={140}><AreaChart data={transect} margin={{ top: 5, right: 5, bottom: 0, left: 0 }}><CartesianGrid strokeDasharray="3 3" stroke="#22345c" /><XAxis dataKey="x" tick={false} /><YAxis tick={{ fill: '#93a4c4', fontSize: 11 }} domain={['auto', 'auto']} /><Tooltip contentStyle={{ background: '#0d1628', border: '1px solid #22345c', color: '#e8eefc' }} /><Area type="monotone" dataKey="m" stroke="#38bdf8" fill="#38bdf8" fillOpacity={0.3} /></AreaChart></ResponsiveContainer>
                 <p className="muted">{tv(lang, 'schemNote', selected.zone.elevationM)}</p>
@@ -510,6 +527,14 @@ export default function App() {
               </tbody></table></div>
               <p className="muted">{t(lang, 'roadNote')}</p>
               </div>
+              <div className="card"><h3>{t(lang, 'intervTitle')}</h3>
+              <div className="tablewrap"><table className="table"><thead><tr><th>{t(lang, 'thZone')}</th><th>{t(lang, 'thActivity')}</th><th>{t(lang, 'thToe')}</th><th>{t(lang, 'thSpoil')}</th></tr></thead><tbody>
+                {sorted.map(z => { const iv = ecoOf(z.zone.id).intervention; const none = iv.activity === 'None reported'; return (
+                  <tr key={z.zone.id}><td>{z.zone.place}</td><td>{none ? t(lang, 'intervNone') : iv.activity}</td>
+                  <td><span className="riskpill" style={{ background: iv.toe === 'Exposed' ? '#ef4444' : iv.toe === 'Partial' ? '#f97316' : '#22c55e' }}>{iv.toe === 'Exposed' ? t(lang, 'toeExposed') : iv.toe === 'Partial' ? t(lang, 'toePartial') : t(lang, 'toeSupported')}</span></td>
+                  <td>{iv.spoil ? '⚠️' : '—'}</td></tr>); })}
+              </tbody></table></div>
+              </div>
             </div>
           )}
 
@@ -540,7 +565,7 @@ export default function App() {
           {tab === 'Admin' && (
             <div className="card"><h3>{t(lang, 'authDash')}</h3>
               {reports.length === 0 && <p className="muted">{t(lang, 'noReports')}</p>}
-              {reports.map(r => <div key={r.id} className="card" style={{ marginTop: 8 }}><b>{r.place}, {r.district}</b> <span className="badge">{statusLabel(r.status)}</span><p className="muted">{r.date} · {r.severity} · {t(lang, 'thRoads')}: {r.roadBlocked ? '✓' : '—'} · {r.description}</p>{r.aiNote && <p className="muted">{r.aiNote}</p>}<div className="row">{(['NEW', 'UNDER REVIEW', 'VERIFIED', 'REJECTED', 'RESOLVED'] as const).map(s => <button key={s} className="btn" onClick={() => setReports(prev => prev.map(x => x.id === r.id ? { ...x, status: s } : x))}>{statusLabel(s)}</button>)}</div></div>)}
+              {reports.map(r => <div key={r.id} className="card" style={{ marginTop: 8 }}><b>{r.place}, {r.district}</b> <span className="badge">{statusLabel(r.status)}</span><p className="muted">{r.date} · {r.severity} · {t(lang, 'thRoads')}: {r.roadBlocked ? '✓' : '—'} · {r.description}</p>{r.tek && r.tek.length > 0 && <ul className="muted">{r.tek.map(k => <li key={k}>{t(lang, k)}</li>)}</ul>}{r.aiNote && <p className="muted">{r.aiNote}</p>}<div className="row">{(['NEW', 'UNDER REVIEW', 'VERIFIED', 'REJECTED', 'RESOLVED'] as const).map(s => <button key={s} className="btn" onClick={() => setReports(prev => prev.map(x => x.id === r.id ? { ...x, status: s } : x))}>{statusLabel(s)}</button>)}</div></div>)}
             </div>
           )}
         </div>

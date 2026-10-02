@@ -14,6 +14,7 @@ export interface CommunityReport {
   status: 'NEW' | 'UNDER REVIEW' | 'VERIFIED' | 'REJECTED' | 'RESOLVED';
   photoName?: string;
   aiNote?: string;
+  tek?: string[]; // Traditional Ecological Knowledge precursor keys observed
 }
 
 export interface AlertItem {

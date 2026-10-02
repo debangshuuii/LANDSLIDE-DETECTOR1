@@ -4,8 +4,9 @@
 // This is a DEMO decision-support model, not a certified predictor.
 
 import type { NerZone } from '../data/nerDistricts';
+import { ecoOf } from '../data/eco';
 import type { Lang } from './i18n';
-import { actionText, factorDetail, factorName, reasonText } from './i18n';
+import { actionText, factorDetail, factorName, reasonText, t } from './i18n';
 
 export type RiskLevel = 'LOW' | 'MODERATE' | 'HIGH' | 'CRITICAL';
 
@@ -59,19 +60,29 @@ export function assessZone(z: NerZone, overrides?: Partial<Pick<NerZone, 'rainfa
   const moist = overrides?.soilMoisturePct ?? z.soilMoisturePct;
   const slope = overrides?.slopeDeg ?? z.slopeDeg;
 
+  const eco = ecoOf(z.id);
+  const canopyRisk = 100 - eco.canopyPct;
+  const rootsRisk = eco.roots === 'Deep' ? 20 : eco.roots === 'Mixed' ? 55 : 90;
+  const drainRisk = eco.drainage === 'Free' ? 15 : eco.drainage === 'Partial' ? 55 : 95;
+  const rootsLabel = eco.roots === 'Deep' ? t(lang, 'rtDeep') : eco.roots === 'Mixed' ? t(lang, 'rtMixed') : t(lang, 'rtShallow');
+  const drainLabel = eco.drainage === 'Free' ? t(lang, 'drFree') : eco.drainage === 'Partial' ? t(lang, 'drPartial') : t(lang, 'drBlocked');
+
   const details = [
     factorDetail(lang, 0, String(rain24)), factorDetail(lang, 1, String(rain7d)),
     factorDetail(lang, 2, String(slope)), factorDetail(lang, 3, String(moist)),
     `${z.elevationM} m, ${z.soil}`, factorDetail(lang, 5, String(z.histCount5y)), factorDetail(lang, 6, String(z.distRiverM)),
   ];
   const factors: RiskFactor[] = [
-    { name: factorName(lang, 0), value: normRain24(rain24), weight: 0.26, detail: details[0] },
-    { name: factorName(lang, 1), value: normRain7d(rain7d), weight: 0.14, detail: details[1] },
-    { name: factorName(lang, 2), value: normSlope(slope), weight: 0.18, detail: details[2] },
-    { name: factorName(lang, 3), value: normMoist(moist), weight: 0.16, detail: details[3] },
-    { name: factorName(lang, 4), value: normElev(z.elevationM), weight: 0.08, detail: details[4] },
-    { name: factorName(lang, 5), value: normHist(z.histCount5y), weight: 0.12, detail: details[5] },
-    { name: factorName(lang, 6), value: normRiver(z.distRiverM), weight: 0.06, detail: details[6] },
+    { name: factorName(lang, 0), value: normRain24(rain24), weight: 0.22, detail: details[0] },
+    { name: factorName(lang, 1), value: normRain7d(rain7d), weight: 0.12, detail: details[1] },
+    { name: factorName(lang, 2), value: normSlope(slope), weight: 0.15, detail: details[2] },
+    { name: factorName(lang, 3), value: normMoist(moist), weight: 0.13, detail: details[3] },
+    { name: factorName(lang, 4), value: normElev(z.elevationM), weight: 0.06, detail: details[4] },
+    { name: factorName(lang, 5), value: normHist(z.histCount5y), weight: 0.09, detail: details[5] },
+    { name: factorName(lang, 6), value: normRiver(z.distRiverM), weight: 0.05, detail: details[6] },
+    { name: t(lang, 'canopy'), value: canopyRisk, weight: 0.08, detail: `${eco.canopyPct}%` },
+    { name: t(lang, 'roots'), value: rootsRisk, weight: 0.06, detail: rootsLabel },
+    { name: t(lang, 'drainage'), value: drainRisk, weight: 0.04, detail: drainLabel },
   ];
   const raw = factors.reduce((s, f) => s + f.value * f.weight, 0);
   // logistic sharpening so mid values separate cleanly
@@ -86,6 +97,9 @@ export function assessZone(z: NerZone, overrides?: Partial<Pick<NerZone, 'rainfa
   if (moist >= 78) reasons.push(reasonText(lang, 'rMoist', moist));
   if (z.histCount5y >= 12) reasons.push(reasonText(lang, 'rHist', z.histCount5y));
   if (z.distRiverM <= 400) reasons.push(reasonText(lang, 'rToe', z.distRiverM));
+  if (eco.canopyPct < 35) reasons.push(reasonText(lang, 'rCanopy', eco.canopyPct));
+  if (eco.drainage === 'Blocked') reasons.push(reasonText(lang, 'rDrain', ''));
+  if (eco.roots === 'Shallow') reasons.push(reasonText(lang, 'rRoots', ''));
   if (reasons.length === 0) reasons.push(reasonText(lang, 'rBase', ''));
 
   const action = actionText(lang, level);
