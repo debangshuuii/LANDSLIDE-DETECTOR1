@@ -41,7 +41,7 @@ a { color: var(--accent); }
 .g4 { grid-template-columns: repeat(4, 1fr); }
 .g3 { grid-template-columns: repeat(3, 1fr); }
 .g2 { grid-template-columns: repeat(2, 1fr); }
-@media (max-width: 1000px) { .layout { grid-template-columns: 1fr; } .g4, .g3, .g2 { grid-template-columns: 1fr; } }
+@media (max-width: 1000px) { .layout, .layout.nav-closed { grid-template-columns: 1fr; } .g4, .g3, .g2 { grid-template-columns: 1fr; } }
 /* sliding nav drawer: open = full sidebar, closed = slim icon rail */
 .layout.nav-closed { grid-template-columns: 62px 1fr; }
 .layout.nav-closed .nav .nav-group { display: none; }
