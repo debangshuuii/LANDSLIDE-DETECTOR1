@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "NER LandslideGuard - AI-Based Early Warning and Landslide Risk Monitoring System for North Eastern Region (SIH26001)",
+  "description": "NER LandslideGuard - AI-Based Early Warning and Landslide Risk Monitoring System for North Eastern Region",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
