@@ -18,19 +18,20 @@ function FitAll() {
   return null;
 }
 
-// Fly to the selected zone when the user searches or clicks a place.
-// Skips the first render so the initial full-NER fit stays intact.
+// Fly straight to the searched/clicked zone — including the first search
+// after the map mounts (tab switch remounts the map, so a skip-first-render
+// guard would swallow exactly the flight the user asked for).
 import { useRef } from 'react';
-function FlyToSelected({ lat, lon, zoneKey }: { lat: number; lon: number; zoneKey: string }) {
+function FlyToSelected({ lat, lon, focusTick }: { lat: number; lon: number; focusTick: number }) {
   const map = useMap();
-  const first = useRef(true);
-  const lastKey = useRef(zoneKey);
+  const coords = useRef({ lat, lon });
+  coords.current = { lat, lon };
+  const lastTick = useRef(0);
   useEffect(() => {
-    if (first.current) { first.current = false; lastKey.current = zoneKey; return; }
-    if (lastKey.current === zoneKey) return;
-    lastKey.current = zoneKey;
-    map.flyTo([lat, lon], 9, { duration: 1.2 });
-  }, [map, lat, lon, zoneKey]);
+    if (focusTick === 0 || focusTick === lastTick.current) return;
+    lastTick.current = focusTick;
+    map.flyTo([coords.current.lat, coords.current.lon], 11, { duration: 1.4 });
+  }, [map, focusTick]);
   return null;
 }
 
@@ -137,9 +138,11 @@ export default function App() {
       .map(r => r.z);
   }, [query, zones]);
   const [searchMsg, setSearchMsg] = useState('');
+  const [focusTick, setFocusTick] = useState(0); // bump on every search/click → map flies there
   const goToZone = (id: string) => {
     setSelectedId(id);
     setSearchMsg('');
+    setFocusTick(t => t + 1); // direct zoom-in, even right after tab switch remount
     setTab('Risk Map'); // FlyToSelected pans/zooms the map there
   };
   const runSearch = () => {
@@ -232,7 +235,7 @@ export default function App() {
               <div className="grid g2">
                 <div className="card"><h3>Top risk zones (click to inspect)</h3>
                   <div className="tablewrap"><table className="table"><thead><tr><th>Place</th><th>Rain 24h</th><th>Score</th><th>Level</th></tr></thead><tbody>
-                    {sorted.slice(0, 6).map(z => <tr key={z.zone.id}><td><button className="btn" onClick={() => { setSelectedId(z.zone.id); setTab('Risk Map'); }}>{z.zone.place}</button><div className="muted">{z.zone.district}, {z.zone.state} {z.live ? '· 🟢live' : '· demo'}</div></td><td>{Math.round(z.zone.rainfall24mm + demoBoost)} mm</td><td>{z.risk.score}</td><td><span className="riskpill" style={{ background: z.risk.color }}>{z.risk.level}</span></td></tr>)}
+                    {sorted.slice(0, 6).map(z => <tr key={z.zone.id}><td><button className="btn" onClick={() => goToZone(z.zone.id)}>{z.zone.place}</button><div className="muted">{z.zone.district}, {z.zone.state} {z.live ? '· 🟢live' : '· demo'}</div></td><td>{Math.round(z.zone.rainfall24mm + demoBoost)} mm</td><td>{z.risk.score}</td><td><span className="riskpill" style={{ background: z.risk.color }}>{z.risk.level}</span></td></tr>)}
                   </tbody></table></div>
                 </div>
                 <div className="card"><h3>24h rainfall vs {HISTORICAL_AVG_RAINFALL_24}mm avg ({useLive ? 'LIVE, top 8' : 'simulated, top 8'})</h3>
@@ -262,7 +265,7 @@ export default function App() {
                 <Suspense fallback={<p className="muted">Loading map…</p>}>
                 <MapContainer center={[26, 92.5]} zoom={6} style={{ marginTop: 10 }}>
                   <FitAll />
-                  <FlyToSelected lat={selected.zone.lat} lon={selected.zone.lon} zoneKey={selected.zone.id} />
+                  <FlyToSelected lat={selected.zone.lat} lon={selected.zone.lon} focusTick={focusTick} />
                   <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="© OpenStreetMap contributors" />
                   {layers.rain && zones.map(z => (
                     <CircleMarker key={`rain-${z.zone.id}`} center={[z.zone.lat, z.zone.lon]} radius={4 + Math.min(30, (z.zone.rainfall24mm + demoBoost) / 6)} pathOptions={{ color: '#38bdf8', fillColor: '#38bdf8', fillOpacity: 0.18, dashArray: '4 4' }}>
