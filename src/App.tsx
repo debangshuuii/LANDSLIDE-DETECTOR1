@@ -18,6 +18,22 @@ function FitAll() {
   return null;
 }
 
+// Fly to the selected zone when the user searches or clicks a place.
+// Skips the first render so the initial full-NER fit stays intact.
+import { useRef } from 'react';
+function FlyToSelected({ lat, lon, zoneKey }: { lat: number; lon: number; zoneKey: string }) {
+  const map = useMap();
+  const first = useRef(true);
+  const lastKey = useRef(zoneKey);
+  useEffect(() => {
+    if (first.current) { first.current = false; lastKey.current = zoneKey; return; }
+    if (lastKey.current === zoneKey) return;
+    lastKey.current = zoneKey;
+    map.flyTo([lat, lon], 9, { duration: 1.2 });
+  }, [map, lat, lon, zoneKey]);
+  return null;
+}
+
 function csvCell(v: string): string {
   const s = String(v ?? '');
   const safe = /^[=+\-@]/.test(s) ? `'${s}` : s; // stop Excel formula injection
@@ -99,7 +115,39 @@ export default function App() {
 
   const allLow = zones.length > 0 && zones.every(z => z.risk.level === 'LOW');
   const overall: RiskLevel = counts.critical > 0 ? 'CRITICAL' : counts.high > 0 ? 'HIGH' : allLow ? 'LOW' : 'MODERATE';
-  const filtered = query ? zones.filter(z => `${z.zone.place} ${z.zone.district} ${z.zone.state}`.toLowerCase().includes(query.toLowerCase())) : zones;
+  const norm = (s: string) => s.trim().toLowerCase();
+  // Ranked search across place/district/state/roads (placeholder promises roads).
+  const scored = useMemo(() => {
+    const q = norm(query);
+    if (!q) return [];
+    return zones
+      .map(z => {
+        const place = norm(z.zone.place), dist = norm(z.zone.district), st = norm(z.zone.state);
+        const roads = z.zone.roads.map(norm);
+        let score = 0;
+        if (place.startsWith(q)) score += 3;
+        else if (place.includes(q)) score += 2;
+        if (dist.includes(q)) score += 1.5;
+        if (st.includes(q)) score += 1;
+        if (roads.some(r => r.includes(q))) score += 1;
+        return { z, score };
+      })
+      .filter(r => r.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .map(r => r.z);
+  }, [query, zones]);
+  const [searchMsg, setSearchMsg] = useState('');
+  const goToZone = (id: string) => {
+    setSelectedId(id);
+    setSearchMsg('');
+    setTab('Risk Map'); // FlyToSelected pans/zooms the map there
+  };
+  const runSearch = () => {
+    const q = norm(query);
+    if (!q) { setSearchMsg('Type a place — e.g. Shillong'); return; }
+    if (scored.length === 0) { setSearchMsg(`No match for "${query.trim()}" — try a district like Aizawl or a road like NH-6`); return; }
+    goToZone(scored[0].zone.id);
+  };
 
   const pushAlert = (zoneId: string, level: RiskLevel, message: string) => {
     const z = NER_ZONES.find(v => v.id === zoneId);
@@ -138,11 +186,21 @@ export default function App() {
     <>
       <div className="topbar">
         <div className="brand">⛰️ NER LandslideGuard<small>SIH26001 · MDoNER · DISASTER MGMT · DEMO/SIMULATION MODE</small></div>
-        <div className="search">
+        <div className="search" style={{ position: 'relative' }}>
           <label htmlFor="site-search" className="muted" style={{ alignSelf: 'center' }}>Search</label>
-          <input id="site-search" placeholder="State / district / village / road — e.g. Shillong" value={query} onChange={e => setQuery(e.target.value)} />
-          <button className="btn" onClick={() => { const f = filtered[0]; if (f) { setSelectedId(f.zone.id); setTab('Risk Map'); } }}>Go</button>
+          <input id="site-search" placeholder="State / district / village / road — e.g. Shillong" value={query} onChange={e => { setQuery(e.target.value); setSearchMsg(''); }} onKeyDown={e => { if (e.key === 'Enter') runSearch(); }} autoComplete="off" />
+          <button className="btn" onClick={runSearch}>Go</button>
+          {norm(query) && scored.length > 0 && (
+            <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#0d1628', border: '1px solid #22345c', borderRadius: 8, marginTop: 4, zIndex: 1200, overflow: 'hidden' }}>
+              {scored.slice(0, 6).map(s => (
+                <button key={s.zone.id} className="btn" style={{ display: 'block', width: '100%', textAlign: 'left', border: 'none', borderRadius: 0 }} onClick={() => goToZone(s.zone.id)}>
+                  {s.zone.place} <span className="muted">· {s.zone.district}, {s.zone.state} · {s.risk.score} {s.risk.level}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
+        {searchMsg && <span className="muted" role="status">{searchMsg}</span>}
         <span className={useLive ? 'badge live' : 'badge sim'}>{useLive ? 'LIVE RAIN (Open-Meteo)' : 'SIMULATION DATA'}</span>
         <button className="btn" onClick={() => setUseLive(v => !v)} title="Beginner: this one switch swaps demo numbers for real API rain">{useLive ? '☁ Use Demo Data' : '🌧 Use Live Rain'}</button>
         <button className="btn" onClick={refreshLive}>{liveLoading ? 'Fetching…' : '↻ Refresh rain'}</button>
@@ -204,6 +262,7 @@ export default function App() {
                 <Suspense fallback={<p className="muted">Loading map…</p>}>
                 <MapContainer center={[26, 92.5]} zoom={6} style={{ marginTop: 10 }}>
                   <FitAll />
+                  <FlyToSelected lat={selected.zone.lat} lon={selected.zone.lon} zoneKey={selected.zone.id} />
                   <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="© OpenStreetMap contributors" />
                   {layers.rain && zones.map(z => (
                     <CircleMarker key={`rain-${z.zone.id}`} center={[z.zone.lat, z.zone.lon]} radius={4 + Math.min(30, (z.zone.rainfall24mm + demoBoost) / 6)} pathOptions={{ color: '#38bdf8', fillColor: '#38bdf8', fillOpacity: 0.18, dashArray: '4 4' }}>
@@ -211,7 +270,7 @@ export default function App() {
                     </CircleMarker>
                   ))}
                   {layers.risk && zones.map(z => (
-                    <CircleMarker key={z.zone.id} center={[z.zone.lat, z.zone.lon]} radius={8 + z.risk.score / 12} pathOptions={{ color: z.risk.color, fillColor: z.risk.color, fillOpacity: 0.55 }} eventHandlers={{ click: () => setSelectedId(z.zone.id) }}>
+                    <CircleMarker key={z.zone.id} center={[z.zone.lat, z.zone.lon]} radius={(z.zone.id === selected.zone.id ? 12 : 8) + z.risk.score / 12} pathOptions={{ color: z.zone.id === selected.zone.id ? '#ffffff' : z.risk.color, fillColor: z.risk.color, fillOpacity: 0.55, weight: z.zone.id === selected.zone.id ? 3 : 1 }} eventHandlers={{ click: () => setSelectedId(z.zone.id) }}>
                       <Popup><b>{z.zone.place}</b> ({z.zone.district})<br />Risk {z.risk.score} — {z.risk.level}<br />Rain 24h: {Math.round(z.zone.rainfall24mm + demoBoost)} mm<br />{z.risk.reasons[0]}</Popup>
                     </CircleMarker>
                   ))}
