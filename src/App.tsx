@@ -330,7 +330,8 @@ export default function App() {
           {tab === 'Alerts' && (
             <div className="grid">
               <div className="card"><h3>Early warnings (GREEN→YELLOW→ORANGE→RED)</h3>
-                <div className="row"><button className="btn warn" onClick={() => pushAlert(selected.zone.id, selected.risk.level, `Auto rule: ${selected.zone.place} ${selected.risk.score} (${selected.risk.level}) exceeds threshold.`)}>Generate for {selected.zone.place}</button></div>
+                <div className="row"><button className="btn warn" onClick={() => pushAlert(selected.zone.id, selected.risk.level, `Auto rule: ${selected.zone.place} ${selected.risk.score} (${selected.risk.level}) exceeds threshold.`)}>Generate for {selected.zone.place}</button>
+                {alerts.length > 0 && <button className="btn danger" onClick={() => { if (window.confirm(`Delete all ${alerts.length} alerts? This cannot be undone.`)) setAlerts([]); }}>🗑 Clear all ({alerts.length})</button>}</div>
                 {alerts.length === 0 && <p className="muted">No alerts yet. Run the Heavy-Rain demo or generate one manually.</p>}
                 {alerts.map(a => <div key={a.id} className="card alert" style={{ marginTop: 10 }}><b>[{a.level}] {a.zoneName}</b> <span className="muted">{a.time}</span><p>{a.message}</p><p className="muted">Channel: {a.channel} — clearly mock; wire SMS/email gateway for production.</p><div className="row"><button className="btn" onClick={() => setAlerts(prev => prev.map(x => x.id === a.id ? { ...x, acked: !x.acked } : x))}>{a.acked ? 'Unack' : 'Acknowledge'}</button></div></div>)}
               </div>
