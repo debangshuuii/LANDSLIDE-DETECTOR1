@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from 'react-leaflet';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import { NER_ZONES, HISTORICAL_AVG_RAINFALL_24 } from './data/nerDistricts';
 import { HISTORICAL_INCIDENTS } from './data/historical';
 import { assessZone, WARNING_META, levelRank, type RiskLevel } from './lib/riskEngine';
+import { fetchAllLiveWeather, loadCachedWeather, type LiveWeather } from './lib/weather';
 import { useLocalAlerts, useLocalReports, photoPrelimAssessment, trend24h, type CommunityReport } from './lib/store';
 
 type Tab = 'Dashboard' | 'Risk Map' | 'Monitoring' | 'Predictions' | 'Alerts' | 'Incidents' | 'Infrastructure' | 'Reports' | 'Simulation' | 'Community' | 'Admin';
@@ -22,13 +23,50 @@ export default function App() {
   const [selectedId, setSelectedId] = useState('shillong-ekh');
   const [demoBoost, setDemoBoost] = useState(0); // mm added by demo simulation
   const [layers, setLayers] = useState({ risk: true, rain: true, hist: true, infra: false });
+  // --- LIVE WEATHER (Step 1) ---
+  // useLive = false → old demo numbers. true → real rain from Open-Meteo.
+  // live = { zoneId: {rain24mm, rain7dmm, soilEstPct} }
+  const [useLive, setUseLive] = useState(false);
+  const [live, setLive] = useState<Record<string, LiveWeather>>(() => loadCachedWeather()?.data ?? {});
+  const [liveLoading, setLiveLoading] = useState(false);
+  const [liveError, setLiveError] = useState('');
+  const [liveAt, setLiveAt] = useState<string>(() => {
+    try { const c = loadCachedWeather(); const k = c && Object.values(c.data)[0]; return (k as LiveWeather | undefined)?.updatedAt ?? ''; } catch { return ''; }
+  });
+  // When user turns ON live mode, fetch once (and reuse cache for 1 hour).
+  useEffect(() => {
+    if (!useLive) return;
+    if (Object.keys(live).length > 0) return; // already have fresh cache
+    setLiveLoading(true); setLiveError('');
+    fetchAllLiveWeather(NER_ZONES.map(z => ({ id: z.id, lat: z.lat, lon: z.lon })))
+      .then(d => {
+        setLive(d);
+        const first = Object.values(d)[0];
+        if (first) setLiveAt(first.updatedAt);
+        if (Object.keys(d).length === 0) setLiveError('Live fetch failed — showing demo numbers.');
+      })
+      .catch(() => setLiveError('No internet / API blocked — showing demo numbers.'))
+      .finally(() => setLiveLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [useLive]);
   const { reports, setReports } = useLocalReports();
   const { alerts, setAlerts } = useLocalAlerts();
 
-  const zones = useMemo(() => NER_ZONES.map(z => ({
-    zone: z,
-    risk: assessZone(z, demoBoost ? { rainfall24mm: z.rainfall24mm + demoBoost, soilMoisturePct: Math.min(96, z.soilMoisturePct + demoBoost / 6) } : undefined),
-  })), [demoBoost]);
+  // Merge: demo numbers are the base; live rain overwrites them when ON.
+  const zones = useMemo(() => NER_ZONES.map(z => {
+    const L = (useLive && live[z.id]) ? live[z.id] : null;
+    const base = {
+      ...z,
+      rainfall24mm: L ? L.rain24mm : z.rainfall24mm,
+      rainfall7dmm: L ? L.rain7dmm : z.rainfall7dmm,
+      soilMoisturePct: L ? L.soilEstPct : z.soilMoisturePct,
+    };
+    return {
+      zone: base,
+      live: !!L, // did this row use live data?
+      risk: assessZone(base, demoBoost ? { rainfall24mm: base.rainfall24mm + demoBoost, soilMoisturePct: Math.min(96, base.soilMoisturePct + demoBoost / 6) } : undefined),
+    };
+  }), [demoBoost, useLive, live]);
 
   const sorted = useMemo(() => [...zones].sort((a, b) => b.risk.score - a.risk.score), [zones]);
   const selected = zones.find(z => z.zone.id === selectedId) ?? sorted[0];
@@ -65,12 +103,20 @@ export default function App() {
           <input placeholder="Search state / district / village / road — e.g. Shillong" value={query} onChange={e => setQuery(e.target.value)} />
           <button className="btn" onClick={() => { const f = filtered[0]; if (f) { setSelectedId(f.zone.id); setTab('Risk Map'); } }}>Go</button>
         </div>
-        <span className="badge sim">SIMULATION DATA</span>
+        <span className={useLive ? 'badge live' : 'badge sim'}>{useLive ? 'LIVE RAIN (Open-Meteo)' : 'SIMULATION DATA'}</span>
+        <button className="btn" onClick={() => setUseLive(v => !v)} title="Beginner: this one switch swaps demo numbers for real API rain">{useLive ? '☁ Use Demo Data' : '🌧 Use Live Rain'}</button>
+        <button className="btn" onClick={() => {
+          setLiveLoading(true); setLiveError('');
+          fetchAllLiveWeather(NER_ZONES.map(z => ({ id: z.id, lat: z.lat, lon: z.lon }))).then(d => {
+            setLive(d); const f = Object.values(d)[0]; if (f) setLiveAt(f.updatedAt);
+            if (!useLive) setUseLive(true);
+          }).finally(() => setLiveLoading(false));
+        }}>{liveLoading ? 'Fetching…' : '↻ Refresh rain'}</button>
         <button className="btn" onClick={() => setTab('Alerts')}>🔔 Alerts ({counts.warnings})</button>
         <button className="btn primary" onClick={runHeavyRainSim}>▶ Demo: Heavy Rain</button>
         {demoBoost > 0 && <button className="btn" onClick={() => setDemoBoost(0)}>Reset sim</button>}
       </div>
-      <div className="disclaimer">Risk estimates are <b>decision-support information only</b> and do not replace official DDMA/GSI field verification. Rainfall, soil-moisture and model outputs on this page are <b>simulated demo data</b> unless a live provider is connected. Historical rows marked DEMO are synthetic placeholders.</div>
+      <div className="disclaimer">Risk estimates are <b>decision-support information only</b> and do not replace official DDMA/GSI field verification. {useLive ? <span>Rainfall is <b>LIVE from Open-Meteo</b> (free API, no key){liveAt && `, fetched ${liveAt}`}; soil moisture is <b>estimated from rain</b>, not a sensor.</span> : <span>Rainfall, soil-moisture and model outputs are <b>simulated demo data</b> — press <b>🌧 Use Live Rain</b> for real rain.</span>} {liveError && <span> ⚠ {liveError}</span>} Historical rows marked DEMO are synthetic placeholders.</div>
 
       <div className="layout">
         <nav className="nav">
@@ -83,7 +129,7 @@ export default function App() {
             <div className="grid">
               <div className="card">
                 <h3>Current Regional Risk — <span className="riskpill" style={{ background: overall === 'CRITICAL' ? '#ef4444' : overall === 'HIGH' ? '#f97316' : '#eab308', color: '#111' }}>{overall} · {WARNING_META[overall].code}</span></h3>
-                <p className="muted">Highest zone: <b>{sorted[0].zone.place}</b> — {sorted[0].risk.score}/100 ({sorted[0].risk.level}). Recomputed from simulated rainfall + terrain. Last updated: {new Date().toLocaleString()} · Status: <span className="badge sim">SIMULATED</span></p>
+                <p className="muted">Highest zone: <b>{sorted[0].zone.place}</b> — {sorted[0].risk.score}/100 ({sorted[0].risk.level}). Recomputed from {useLive ? 'LIVE rain + terrain' : 'simulated rainfall + terrain'}. Last updated: {useLive && liveAt ? liveAt : new Date().toLocaleString()} · Status: <span className={useLive ? 'badge live' : 'badge sim'}>{useLive ? 'LIVE RAIN' : 'SIMULATED'}</span></p>
                 <div className="grid g4">
                   <div className="card"><div className="muted">Areas monitored</div><div className="stat">{zones.length}</div></div>
                   <div className="card"><div className="muted">High + Critical zones</div><div className="stat">{counts.high + counts.critical}</div></div>
@@ -94,10 +140,10 @@ export default function App() {
               <div className="grid g2">
                 <div className="card"><h3>Top risk zones (click to inspect)</h3>
                   <table className="table"><thead><tr><th>Place</th><th>Rain 24h</th><th>Score</th><th>Level</th></tr></thead><tbody>
-                    {sorted.slice(0, 6).map(z => <tr key={z.zone.id}><td><button className="btn" onClick={() => { setSelectedId(z.zone.id); setTab('Risk Map'); }}>{z.zone.place}</button><div className="muted">{z.zone.district}, {z.zone.state}</div></td><td>{Math.round(z.zone.rainfall24mm + demoBoost)} mm</td><td>{z.risk.score}</td><td><span className="riskpill" style={{ background: z.risk.color }}>{z.risk.level}</span></td></tr>)}
+                    {sorted.slice(0, 6).map(z => <tr key={z.zone.id}><td><button className="btn" onClick={() => { setSelectedId(z.zone.id); setTab('Risk Map'); }}>{z.zone.place}</button><div className="muted">{z.zone.district}, {z.zone.state} {z.live ? '· 🟢live' : '· demo'}</div></td><td>{Math.round(z.zone.rainfall24mm + demoBoost)} mm</td><td>{z.risk.score}</td><td><span className="riskpill" style={{ background: z.risk.color }}>{z.risk.level}</span></td></tr>)}
                   </tbody></table>
                 </div>
-                <div className="card"><h3>24h rainfall vs {HISTORICAL_AVG_RAINFALL_24}mm avg (simulated, top 8)</h3>
+                <div className="card"><h3>24h rainfall vs {HISTORICAL_AVG_RAINFALL_24}mm avg ({useLive ? 'LIVE, top 8' : 'simulated, top 8'})</h3>
                   <ResponsiveContainer width="100%" height={260}><BarChart data={rainBars}><CartesianGrid strokeDasharray="3 3" stroke="#22345c" /><XAxis dataKey="name" tick={{ fill: '#93a4c4', fontSize: 11 }} interval={0} angle={-20} height={60} /><YAxis tick={{ fill: '#93a4c4' }} /><Tooltip /><Bar dataKey="mm" fill="#38bdf8" /></BarChart></ResponsiveContainer>
                 </div>
               </div>
@@ -143,7 +189,7 @@ export default function App() {
                 <h3>Why is this area at risk?</h3>
                 <ul className="muted">{selected.risk.reasons.map(r => <li key={r}>{r}</li>)}</ul>
                 <p><b>Recommended action:</b> {selected.risk.action}</p>
-                <p className="muted">Elevation {selected.zone.elevationM} m · Slope {selected.zone.slopeDeg}° · Soil {selected.zone.soil} · {selected.zone.histCount5y} incidents/5y · Data status: SIMULATED · Source: demo bundle, {new Date().toLocaleTimeString()}</p>
+                <p className="muted">Elevation {selected.zone.elevationM} m · Slope {selected.zone.slopeDeg}° · Soil {selected.zone.soil} · {selected.zone.histCount5y} incidents/5y · Data status: {selected.live ? 'LIVE RAIN + estimated moisture' : 'SIMULATED'} · {useLive && liveAt ? `Rain fetched ${liveAt}` : `Source: demo bundle, ${new Date().toLocaleTimeString()}`}</p>
                 <div className="row">
                   <button className="btn warn" onClick={() => pushAlert(selected.zone.id, selected.risk.level, `Manual warning: ${selected.zone.place} scored ${selected.risk.score} (${selected.risk.level}). ${selected.risk.reasons[0]}. Action: ${selected.risk.action}`)}>Generate warning</button>
                   <button className="btn" onClick={() => setTab('Simulation')}>Open What-If simulator</button>
@@ -154,11 +200,11 @@ export default function App() {
 
           {tab === 'Monitoring' && (
             <div className="grid">
-              <div className="card"><h3>Rainfall monitoring <span className="badge sim">SIMULATED FEED</span></h3>
+              <div className="card"><h3>Rainfall monitoring <span className={useLive ? 'badge live' : 'badge sim'}>{useLive ? 'LIVE FEED (Open-Meteo)' : 'SIMULATED FEED'}</span></h3>
                 <table className="table"><thead><tr><th>Zone</th><th>24h</th><th>7d</th><th>Anomaly vs {HISTORICAL_AVG_RAINFALL_24}mm</th><th>Soil moist.</th></tr></thead><tbody>
                   {sorted.map(z => { const cur = Math.round(z.zone.rainfall24mm + demoBoost); const an = Math.round(((cur - HISTORICAL_AVG_RAINFALL_24) / HISTORICAL_AVG_RAINFALL_24) * 100); return <tr key={z.zone.id}><td>{z.zone.place}</td><td>{cur} mm</td><td>{Math.round(z.zone.rainfall7dmm + demoBoost * 2)} mm</td><td style={{ color: an > 50 ? '#ef4444' : an > 0 ? '#eab308' : '#22c55e' }}>{an > 0 ? `+${an}%` : `${an}%`}</td><td>{Math.min(96, Math.round(z.zone.soilMoisturePct + demoBoost / 6))}%</td></tr>; })}
                 </tbody></table>
-                <p className="muted">Source: simulated bundle · Last updated {new Date().toLocaleString()} · Update frequency: on demo trigger · To go live: plug IMD AWS/ARG or state rain-gauge API here.</p>
+                <p className="muted">Source: {useLive ? 'Open-Meteo forecast API (free, no key)' : 'simulated bundle'} · Last updated {useLive && liveAt ? liveAt : new Date().toLocaleString()} · Soil moisture {useLive ? 'estimated from weekly rain (not a sensor)' : 'simulated'} · Cache: 1 hour in browser · To upgrade: plug IMD AWS/ARG rain-gauge API here.</p>
               </div>
             </div>
           )}
