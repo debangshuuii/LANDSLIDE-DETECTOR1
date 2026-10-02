@@ -2,6 +2,7 @@ import { Suspense, lazy, useEffect, useMemo, useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, AreaChart, Area } from 'recharts';
 import { NER_ZONES, HISTORICAL_AVG_RAINFALL_24 } from './data/nerDistricts';
 import { HISTORICAL_INCIDENTS } from './data/historical';
+import { CORRIDORS, corridorStatus } from './data/corridors';
 import { assessZone, WARNING_META, levelRank, type RiskLevel } from './lib/riskEngine';
 import { fetchAllLiveWeather, loadCachedWeather, type LiveWeather } from './lib/weather';
 import { fetchForecast72h, forecastTotal, type HourPoint } from './lib/forecast';
@@ -12,6 +13,8 @@ import GISMap from './components/GISMap';
 import WhatIfPanel from './components/WhatIfPanel';
 import CommunityForm from './components/CommunityForm';
 import CorridorMonitor from './components/CorridorMonitor';
+import Bulletin, { openBulletinPrint, type BulletinDoc } from './components/Bulletin';
+import { bulletinRef, buildFullCsv, directives, downloadTextFile } from './lib/bulletin';
 
 type Tab = 'Dashboard' | 'Risk Map' | 'Monitoring' | 'Predictions' | 'Alerts' | 'Incidents' | 'Infrastructure' | 'Reports' | 'Simulation' | 'Community' | 'Admin';
 
@@ -167,8 +170,41 @@ export default function App() {
 
   const trend = trend24h(selected.risk.score, demoBoost ? 8 : 0);
   const rainBars = sorted.slice(0, 8).map(z => ({ name: z.zone.place, mm: Math.round(z.zone.rainfall24mm + demoBoost) }));
+  const [bulRef] = useState(() => bulletinRef());
   const [lang, setLang] = useState<Lang>('en');
   const levelOf = (zoneId: string) => zones.find(z => z.zone.id === zoneId)?.risk.level ?? 'LOW';
+  // Official bulletin document (memoized so the ref number stays stable).
+  const bulletinDoc: BulletinDoc = useMemo(() => {
+    const peak = sorted.reduce((a, b) => (b.zone.rainfall24mm + demoBoost > a.zone.rainfall24mm + demoBoost ? b : a), sorted[0]);
+    const anomalyCount = sorted.filter(z => z.zone.rainfall24mm + demoBoost > HISTORICAL_AVG_RAINFALL_24).length;
+    const avgMoist = Math.round(sorted.reduce((s, z) => s + Math.min(96, z.zone.soilMoisturePct + demoBoost / 6), 0) / Math.max(1, sorted.length));
+    return {
+      refNo: bulRef,
+      issuedAt: new Date().toLocaleString(),
+      sourceLabel: useLive ? `LIVE (Open-Meteo${liveAt ? `, synced ${liveAt}` : ''})` : 'SIMULATED DEMO DATA',
+      overall,
+      zones: zones.length,
+      severe: counts.high + counts.critical,
+      warnings: alerts.length,
+      exposed: counts.exposed,
+      maxRain: Math.round(peak.zone.rainfall24mm + demoBoost),
+      maxPlace: `${peak.zone.place}, ${peak.zone.district}`,
+      anomalyCount,
+      avgMoist,
+      rows: sorted.map(z => ({
+        zoneId: z.zone.id, place: z.zone.place, district: z.zone.district, state: z.zone.state,
+        lat: z.zone.lat, lon: z.zone.lon, elevationM: z.zone.elevationM, slopeDeg: z.zone.slopeDeg, soil: z.zone.soil,
+        rain24mm: Math.round(z.zone.rainfall24mm + demoBoost), rain7dmm: Math.round(z.zone.rainfall7dmm + demoBoost * 2),
+        soilMoisturePct: Math.min(96, Math.round(z.zone.soilMoisturePct + demoBoost / 6)),
+        score: z.risk.score, level: z.risk.level, reasons: z.risk.reasons,
+        roads: z.zone.roads, infrastructure: z.zone.infrastructure,
+        populationExposed: z.zone.populationExposed, action: z.risk.action,
+      })),
+      corridors: CORRIDORS.map(c => ({ corridor: c.corridor, name: c.name, status: corridorStatus(c.zoneIds.map(levelOf)), bypass: c.bypass })),
+      directives: directives(overall, sorted[0].zone.place),
+      communityCount: reports.length,
+    };
+  }, [sorted, zones, counts, alerts.length, overall, useLive, liveAt, demoBoost, bulRef, reports.length]);
   const transect = useMemo(() => schematicTransect(selected.zone.elevationM, selected.zone.slopeDeg), [selected.zone.elevationM, selected.zone.slopeDeg]);
   // 72h outlook for the selected zone (fetched on demand in Predictions).
   const [fc, setFc] = useState<HourPoint[]>([]);
@@ -359,19 +395,24 @@ export default function App() {
           )}
 
           {tab === 'Reports' && (
-            <div className="grid g2">
-              <div className="card"><h3>Regional risk report</h3>
-                <p className="muted">Date {new Date().toLocaleDateString()} · {zones.length} zones · {counts.critical} critical · {counts.high} high · {alerts.length} alerts · {reports.length} community reports</p>
-                <ul className="muted">{sorted.slice(0, 5).map(z => <li key={z.zone.id}>{z.zone.place} ({z.zone.district}) — {z.risk.score} {z.risk.level}: {z.risk.reasons[0]}</li>)}</ul>
+            <div className="grid">
+              <div className="card no-print"><h3>Official disaster bulletin — {bulletinDoc.refNo}</h3>
+                <p className="muted">Publication-grade A4 bulletin below (letterhead, threat banner, risk matrix, corridors, directives, sign-off). Print opens a clean PDF dialog with app chrome removed; CSV is a 19-column audit register with metadata rows.</p>
                 <div className="row">
+                  <button className="btn primary" onClick={() => {
+                    if (!openBulletinPrint(bulletinDoc)) alert('Popup blocked — allow popups for this site, then retry Print / PDF.');
+                  }}>🖨 Print / PDF bulletin</button>
                   <button className="btn" onClick={() => {
-                    const rows = [['place', 'district', 'state', 'rain24', 'score', 'level'], ...sorted.map(z => [z.zone.place, z.zone.district, z.zone.state, String(Math.round(z.zone.rainfall24mm + demoBoost)), String(z.risk.score), z.risk.level])];
-                    exportRiskCsv(rows, 'ner-risk-report.csv');
-                  }}>Export CSV</button>
-                  <button className="btn" onClick={() => window.print()}>Print / PDF</button>
+                    const csv = buildFullCsv(
+                      { at: new Date().toLocaleString(), zones: zones.length, severe: counts.high + counts.critical, source: useLive ? `LIVE Open-Meteo (synced ${liveAt || 'just now'})` : 'SIMULATED demo bundle' },
+                      bulletinDoc.rows,
+                    );
+                    downloadTextFile(`ner-risk-register-${new Date().toISOString().slice(0, 10)}.csv`, csv, 'text/csv;charset=utf-8');
+                  }}>⬇ Export audit CSV (19 cols)</button>
                 </div>
               </div>
-              <div className="card"><h3>Field mode (mobile-first)</h3><p className="muted">Current location → nearby risk → one-tap report → emergency contacts. Drafts queue offline in localStorage; sync when online.</p><p>Nearby: <b>{selected.zone.place}</b> — {selected.risk.score} ({selected.risk.level})</p><p className="muted">Emergency: DDMA control room (add number) · NDRF 1078 · Police 112</p><button className="btn primary" onClick={() => setTab('Community')}>Report incident</button></div>
+              <Bulletin doc={bulletinDoc} />
+              <div className="card no-print"><h3>Field mode (mobile-first)</h3><p className="muted">Current location → nearby risk → one-tap report → emergency contacts. Drafts queue offline in localStorage; sync when online.</p><p>Nearby: <b>{selected.zone.place}</b> — {selected.risk.score} ({selected.risk.level})</p><p className="muted">Emergency: DDMA control room (add number) · NDRF 1078 · Police 112</p><button className="btn primary" onClick={() => setTab('Community')}>Report incident</button></div>
             </div>
           )}
 
