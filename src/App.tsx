@@ -373,7 +373,6 @@ export default function App() {
       <div className={navOpen ? 'layout' : 'layout nav-closed'}>
         {navOpen && <div className="nav-backdrop" onClick={() => setNavOpen(false)} aria-hidden="true" />}
         <nav className="nav" role="tablist" aria-label="Main sections">
-          <button className="nav-toggle" onClick={() => setNavOpen(v => !v)} aria-label={navOpen ? 'Collapse navigation' : 'Expand navigation'} aria-expanded={navOpen}>{navOpen ? '«' : '»'}</button>
           {NAV_GROUPS.map(g => (
             <div key={g.key}>
               <div className="nav-group">{t(lang, g.key)}</div>
@@ -385,6 +384,7 @@ export default function App() {
               ))}
             </div>
           ))}
+          <button className="nav-collapse" onClick={() => setNavOpen(v => !v)} aria-label={navOpen ? 'Collapse navigation' : 'Expand navigation'} aria-expanded={navOpen}>{navOpen ? '◀ Collapse' : '▶'}</button>
         </nav>
         {!navOpen && <button className="nav-fab" onClick={() => setNavOpen(true)} aria-label="Open navigation">☰</button>}
 
