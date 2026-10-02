@@ -39,6 +39,76 @@ export function exportRiskCsv(rows: string[][], filename: string) {
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 }
 
+export type MergedZone = {
+  zone: typeof NER_ZONES[number] & { rainfall24mm: number; rainfall7dmm: number; soilMoisturePct: number };
+  live: boolean;
+  risk: ReturnType<typeof assessZone>;
+};
+
+// Pure merge: demo base overwritten by live rain when ON. Top-level so the
+// print handler can rebuild from freshly fetched data (never a stale snapshot).
+export function mergeZones(liveData: Record<string, LiveWeather>, useLiveFlag: boolean, boost: number): MergedZone[] {
+  return NER_ZONES.map(z => {
+    const L = (useLiveFlag && liveData[z.id]) ? liveData[z.id] : null;
+    const base = {
+      ...z,
+      rainfall24mm: L ? L.rain24mm : z.rainfall24mm,
+      rainfall7dmm: L ? L.rain7dmm : z.rainfall7dmm,
+      soilMoisturePct: L ? L.soilEstPct : z.soilMoisturePct,
+    };
+    return {
+      zone: base,
+      live: !!L,
+      risk: assessZone(base, boost ? { rainfall24mm: base.rainfall24mm + boost, soilMoisturePct: Math.min(96, base.soilMoisturePct + boost / 6) } : undefined),
+    };
+  });
+}
+
+export function overallOf(merged: MergedZone[]): RiskLevel {
+  const critical = merged.filter(z => z.risk.level === 'CRITICAL').length;
+  const high = merged.filter(z => z.risk.level === 'HIGH').length;
+  if (critical > 0) return 'CRITICAL';
+  if (high > 0) return 'HIGH';
+  if (merged.length > 0 && merged.every(z => z.risk.level === 'LOW')) return 'LOW';
+  return 'MODERATE';
+}
+
+// Pure bulletin builder: same input → same bulletin, whenever it is called.
+export function makeBulletinDoc(args: {
+  merged: MergedZone[]; warnings: number; communityCount: number;
+  refNo: string; issuedAt: string; sourceLabel: string; boost: number; focus: string;
+}): BulletinDoc {
+  const { merged, warnings, communityCount, refNo, issuedAt, sourceLabel, boost, focus } = args;
+  const sorted = [...merged].sort((a, b) => b.risk.score - a.risk.score);
+  const overall = overallOf(merged);
+  const peak = sorted.reduce((a, b) => (b.zone.rainfall24mm + boost > a.zone.rainfall24mm + boost ? b : a), sorted[0]);
+  const anomalyCount = sorted.filter(z => z.zone.rainfall24mm + boost > HISTORICAL_AVG_RAINFALL_24).length;
+  const avgMoist = Math.round(sorted.reduce((s, z) => s + Math.min(96, z.zone.soilMoisturePct + boost / 6), 0) / Math.max(1, sorted.length));
+  const lvl = (id: string) => merged.find(z => z.zone.id === id)?.risk.level ?? 'LOW';
+  return {
+    refNo, issuedAt, sourceLabel, overall, focus,
+    zones: merged.length,
+    severe: merged.filter(z => z.risk.level === 'HIGH' || z.risk.level === 'CRITICAL').length,
+    warnings,
+    exposed: merged.reduce((s, z) => s + z.zone.populationExposed, 0),
+    maxRain: Math.round(peak.zone.rainfall24mm + boost),
+    maxPlace: `${peak.zone.place}, ${peak.zone.district}`,
+    anomalyCount, avgMoist,
+    rows: sorted.map(z => ({
+      zoneId: z.zone.id, place: z.zone.place, district: z.zone.district, state: z.zone.state,
+      lat: z.zone.lat, lon: z.zone.lon, elevationM: z.zone.elevationM, slopeDeg: z.zone.slopeDeg, soil: z.zone.soil,
+      rain24mm: Math.round(z.zone.rainfall24mm + boost), rain7dmm: Math.round(z.zone.rainfall7dmm + boost * 2),
+      soilMoisturePct: Math.min(96, Math.round(z.zone.soilMoisturePct + boost / 6)),
+      score: z.risk.score, level: z.risk.level, reasons: z.risk.reasons.length > 0 ? z.risk.reasons : ['Baseline terrain susceptibility'],
+      roads: z.zone.roads, infrastructure: z.zone.infrastructure,
+      populationExposed: z.zone.populationExposed, action: z.risk.action,
+    })),
+    corridors: CORRIDORS.map(c => ({ corridor: c.corridor, name: c.name, status: corridorStatus(c.zoneIds.map(lvl)), bypass: c.bypass })),
+    directives: directives(overall, sorted[0].zone.place),
+    communityCount,
+  };
+}
+
 export default function App() {
   const [tab, setTab] = useState<Tab>('Dashboard');
   const [query, setQuery] = useState('');
@@ -76,20 +146,7 @@ export default function App() {
   const { alerts, setAlerts } = useLocalAlerts();
 
   // Merge: demo numbers are the base; live rain overwrites them when ON.
-  const zones = useMemo(() => NER_ZONES.map(z => {
-    const L = (useLive && live[z.id]) ? live[z.id] : null;
-    const base = {
-      ...z,
-      rainfall24mm: L ? L.rain24mm : z.rainfall24mm,
-      rainfall7dmm: L ? L.rain7dmm : z.rainfall7dmm,
-      soilMoisturePct: L ? L.soilEstPct : z.soilMoisturePct,
-    };
-    return {
-      zone: base,
-      live: !!L, // did this row use live data?
-      risk: assessZone(base, demoBoost ? { rainfall24mm: base.rainfall24mm + demoBoost, soilMoisturePct: Math.min(96, base.soilMoisturePct + demoBoost / 6) } : undefined),
-    };
-  }), [demoBoost, useLive, live]);
+  const zones = useMemo(() => mergeZones(live, useLive, demoBoost), [demoBoost, useLive, live]);
 
   const sorted = useMemo(() => [...zones].sort((a, b) => b.risk.score - a.risk.score), [zones]);
   const selected = zones.find(z => z.zone.id === selectedId) ?? sorted[0];
@@ -100,8 +157,7 @@ export default function App() {
     exposed: zones.reduce((s, z) => s + z.zone.populationExposed, 0),
   }), [zones, alerts]);
 
-  const allLow = zones.length > 0 && zones.every(z => z.risk.level === 'LOW');
-  const overall: RiskLevel = counts.critical > 0 ? 'CRITICAL' : counts.high > 0 ? 'HIGH' : allLow ? 'LOW' : 'MODERATE';
+  const overall: RiskLevel = useMemo(() => overallOf(zones), [zones]);
   const norm = (s: string) => s.trim().toLowerCase();
   // Ranked search across place/district/state/roads (placeholder promises roads).
   const scored = useMemo(() => {
@@ -173,38 +229,47 @@ export default function App() {
   const [bulRef] = useState(() => bulletinRef());
   const [lang, setLang] = useState<Lang>('en');
   const levelOf = (zoneId: string) => zones.find(z => z.zone.id === zoneId)?.risk.level ?? 'LOW';
-  // Official bulletin document (memoized so the ref number stays stable).
-  const bulletinDoc: BulletinDoc = useMemo(() => {
-    const peak = sorted.reduce((a, b) => (b.zone.rainfall24mm + demoBoost > a.zone.rainfall24mm + demoBoost ? b : a), sorted[0]);
-    const anomalyCount = sorted.filter(z => z.zone.rainfall24mm + demoBoost > HISTORICAL_AVG_RAINFALL_24).length;
-    const avgMoist = Math.round(sorted.reduce((s, z) => s + Math.min(96, z.zone.soilMoisturePct + demoBoost / 6), 0) / Math.max(1, sorted.length));
-    return {
-      refNo: bulRef,
-      issuedAt: new Date().toLocaleString(),
-      sourceLabel: useLive ? `LIVE (Open-Meteo${liveAt ? `, synced ${liveAt}` : ''})` : 'SIMULATED DEMO DATA',
-      overall,
-      zones: zones.length,
-      severe: counts.high + counts.critical,
-      warnings: alerts.length,
-      exposed: counts.exposed,
-      maxRain: Math.round(peak.zone.rainfall24mm + demoBoost),
-      maxPlace: `${peak.zone.place}, ${peak.zone.district}`,
-      anomalyCount,
-      avgMoist,
-      rows: sorted.map(z => ({
-        zoneId: z.zone.id, place: z.zone.place, district: z.zone.district, state: z.zone.state,
-        lat: z.zone.lat, lon: z.zone.lon, elevationM: z.zone.elevationM, slopeDeg: z.zone.slopeDeg, soil: z.zone.soil,
-        rain24mm: Math.round(z.zone.rainfall24mm + demoBoost), rain7dmm: Math.round(z.zone.rainfall7dmm + demoBoost * 2),
-        soilMoisturePct: Math.min(96, Math.round(z.zone.soilMoisturePct + demoBoost / 6)),
-        score: z.risk.score, level: z.risk.level, reasons: z.risk.reasons,
-        roads: z.zone.roads, infrastructure: z.zone.infrastructure,
-        populationExposed: z.zone.populationExposed, action: z.risk.action,
-      })),
-      corridors: CORRIDORS.map(c => ({ corridor: c.corridor, name: c.name, status: corridorStatus(c.zoneIds.map(levelOf)), bypass: c.bypass })),
-      directives: directives(overall, sorted[0].zone.place),
-      communityCount: reports.length,
-    };
-  }, [sorted, zones, counts, alerts.length, overall, useLive, liveAt, demoBoost, bulRef, reports.length]);
+  const focusLabel = `${selected.zone.place}, ${selected.zone.district} — ${selected.risk.score}/100 ${selected.risk.level}`;
+  const sourceLabel = useLive ? `LIVE (Open-Meteo${liveAt ? `, synced ${liveAt}` : ''})` : 'SIMULATED DEMO DATA';
+  // On-screen preview (stable ref). The printed PDF is rebuilt FRESH at click
+  // time with a new ref + timestamp — see printLiveBulletin below.
+  const bulletinDoc: BulletinDoc = useMemo(() => makeBulletinDoc({
+    merged: zones, warnings: alerts.length, communityCount: reports.length,
+    refNo: bulRef, issuedAt: new Date().toLocaleString(), sourceLabel, boost: demoBoost, focus: focusLabel,
+  }), [zones, alerts.length, reports.length, bulRef, sourceLabel, demoBoost, focusLabel]);
+  const [printBusy, setPrintBusy] = useState('');
+  // LIVE print: re-sync rain, rebuild everything from current time + place,
+  // then open the PDF. Every download differs by timestamp + live data.
+  const printLiveBulletin = async () => {
+    setPrintBusy('Syncing live data…');
+    try {
+      let liveData = live;
+      let label = sourceLabel;
+      if (useLive) {
+        const fresh = await fetchAllLiveWeather(NER_ZONES.map(z => ({ id: z.id, lat: z.lat, lon: z.lon })));
+        if (Object.keys(fresh).length > 0) {
+          setLive(fresh);
+          const f = Object.values(fresh)[0];
+          if (f) setLiveAt(f.updatedAt);
+          liveData = fresh;
+          label = `LIVE (Open-Meteo, synced ${f.updatedAt})`;
+        }
+      }
+      const now = new Date();
+      const merged = mergeZones(liveData, useLive, demoBoost);
+      const sel = merged.find(z => z.zone.id === selectedId) ?? merged[0];
+      const doc = makeBulletinDoc({
+        merged, warnings: alerts.length, communityCount: reports.length,
+        refNo: bulletinRef(now), issuedAt: now.toLocaleString(), sourceLabel: label, boost: demoBoost,
+        focus: `${sel.zone.place}, ${sel.zone.district} — ${sel.risk.score}/100 ${sel.risk.level}`,
+      });
+      setPrintBusy('');
+      if (!openBulletinPrint(doc)) alert('Popup blocked — allow popups for this site, then retry Print / PDF.');
+    } catch {
+      setPrintBusy('');
+      alert('Live sync failed — check connection and retry.');
+    }
+  };
   const transect = useMemo(() => schematicTransect(selected.zone.elevationM, selected.zone.slopeDeg), [selected.zone.elevationM, selected.zone.slopeDeg]);
   // 72h outlook for the selected zone (fetched on demand in Predictions).
   const [fc, setFc] = useState<HourPoint[]>([]);
@@ -399,9 +464,7 @@ export default function App() {
               <div className="card no-print"><h3>Official disaster bulletin — {bulletinDoc.refNo}</h3>
                 <p className="muted">Publication-grade A4 bulletin below (letterhead, threat banner, risk matrix, corridors, directives, sign-off). Print opens a clean PDF dialog with app chrome removed; CSV is a 19-column audit register with metadata rows.</p>
                 <div className="row">
-                  <button className="btn primary" onClick={() => {
-                    if (!openBulletinPrint(bulletinDoc)) alert('Popup blocked — allow popups for this site, then retry Print / PDF.');
-                  }}>🖨 Print / PDF bulletin</button>
+                  <button className="btn primary" onClick={() => { void printLiveBulletin(); }}>{printBusy ? printBusy : '🖨 Print / PDF bulletin (live)'}</button>
                   <button className="btn" onClick={() => {
                     const csv = buildFullCsv(
                       { at: new Date().toLocaleString(), zones: zones.length, severe: counts.high + counts.critical, source: useLive ? `LIVE Open-Meteo (synced ${liveAt || 'just now'})` : 'SIMULATED demo bundle' },
