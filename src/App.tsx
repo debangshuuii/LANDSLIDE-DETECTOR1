@@ -328,7 +328,6 @@ export default function App() {
   return (
     <>
       <div className="topbar">
-        <button className="btn" onClick={() => setNavOpen(v => !v)} aria-label="Toggle navigation" aria-expanded={navOpen}>☰</button>
         <div className="brand">
           <img src="/logo.png" alt="BhoomiDrishti NER logo" className="brand-logo" />
           <div>
@@ -374,6 +373,7 @@ export default function App() {
       <div className={navOpen ? 'layout' : 'layout nav-closed'}>
         {navOpen && <div className="nav-backdrop" onClick={() => setNavOpen(false)} aria-hidden="true" />}
         <nav className="nav" role="tablist" aria-label="Main sections">
+          <button className="nav-toggle" onClick={() => setNavOpen(v => !v)} aria-label={navOpen ? 'Collapse navigation' : 'Expand navigation'} aria-expanded={navOpen}>{navOpen ? '«' : '»'}</button>
           {NAV_GROUPS.map(g => (
             <div key={g.key}>
               <div className="nav-group">{t(lang, g.key)}</div>
@@ -386,6 +386,7 @@ export default function App() {
             </div>
           ))}
         </nav>
+        {!navOpen && <button className="nav-fab" onClick={() => setNavOpen(true)} aria-label="Open navigation">☰</button>}
 
         <div className="main">
           {tab === 'Dashboard' && (

@@ -42,15 +42,24 @@ a { color: var(--accent); }
 .g3 { grid-template-columns: repeat(3, 1fr); }
 .g2 { grid-template-columns: repeat(2, 1fr); }
 @media (max-width: 1000px) { .layout { grid-template-columns: 1fr; } .g4, .g3, .g2 { grid-template-columns: 1fr; } }
-/* sliding nav drawer */
-.layout.nav-closed { grid-template-columns: 1fr; }
-.layout.nav-closed .nav { display: none; }
-.nav { transition: transform 0.3s ease; }
+/* sliding nav drawer: open = full sidebar, closed = slim icon rail */
+.layout.nav-closed { grid-template-columns: 62px 1fr; }
+.layout.nav-closed .nav .nav-group { display: none; }
+.layout.nav-closed .nav { padding-top: 46px; }
+.layout.nav-closed .nav button { font-size: 0; justify-content: center; padding: 10px 0; }
+.layout.nav-closed .nav button .ico { font-size: 16px; }
+.layout.nav-closed .nav button .alert-badge { font-size: 10px; margin-left: 0; }
+.nav { transition: transform 0.3s ease; position: relative; }
+.nav-toggle { position: absolute; top: 8px; right: 8px; z-index: 5; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border); background: #16263f; color: var(--text); cursor: pointer; font-weight: 700; }
+.nav-toggle:hover { border-color: var(--accent); }
+.nav-fab { display: none; }
 .nav-backdrop { display: none; }
 @media (max-width: 1000px) {
-  .layout .nav, .layout.nav-closed .nav { display: flex; flex-direction: column; position: fixed; left: 0; top: 0; bottom: 0; width: min(280px, 84vw); z-index: 1500; overflow-y: auto; border-right: 1px solid var(--border); }
+  .layout .nav, .layout.nav-closed .nav { display: flex; flex-direction: column; position: fixed; left: 0; top: 0; bottom: 0; width: min(280px, 84vw); z-index: 1500; overflow-y: auto; border-right: 1px solid var(--border); padding-top: 0; }
   .layout.nav-closed .nav { transform: translateX(-110%); }
+  .layout.nav-closed .nav button { font-size: 14px; }
   .layout:not(.nav-closed) .nav-backdrop { display: block; position: fixed; inset: 0; z-index: 1400; background: rgba(0, 0, 0, 0.5); }
+  .layout.nav-closed .nav-fab { display: block; position: fixed; left: 12px; bottom: 86px; z-index: 1500; width: 46px; height: 46px; border-radius: 50%; border: 1px solid var(--accent); background: #16263f; color: var(--text); font-size: 20px; cursor: pointer; box-shadow: 0 0 16px rgba(56, 189, 248, 0.35); }
 }
 .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
 .card h3 { margin: 0 0 10px 0; font-size: 15px; }
