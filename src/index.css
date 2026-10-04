@@ -23,6 +23,7 @@ a { color: var(--accent); }
 .brand small { display: block; font-weight: 500; color: var(--muted); font-size: 10px; letter-spacing: 0.6px; margin-top: 1px; }
 .search { flex: 1; min-width: 200px; display: flex; gap: 8px; }
 .search input { flex: 1; padding: 9px 12px; border-radius: 8px; border: 1px solid var(--border); background: #0a1326; color: var(--text); }
+.actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .btn { padding: 9px 14px; border-radius: 8px; border: 1px solid var(--border); background: #16263f; color: var(--text); cursor: pointer; font-weight: 600; }
 .btn:hover { border-color: var(--accent); }
 .btn.primary { background: var(--accent); color: #04222f; border-color: transparent; }
@@ -210,10 +211,14 @@ input[type="range"].sl-violet::-moz-range-thumb { background: #a78bfa; box-shado
 @media (max-width: 600px) {
   body { font-size: 15px; }
   .topbar { gap: 8px; padding: 10px 12px; }
-  .brand { font-size: 16px; }
+  .brand { font-size: 16px; flex: 1; min-width: 0; }
   .brand-logo { height: 32px; width: 32px; }
   .brand small { font-size: 10px; }
   .search { order: 5; flex-basis: 100%; min-width: 0; }
+  .search-msg { order: 6; flex-basis: 100%; }
+  .actions { order: 7; flex-basis: 100%; flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
+  .actions::-webkit-scrollbar { display: none; }
+  .actions .btn, .actions select, .actions .badge { flex-shrink: 0; }
   .topbar .btn { padding: 10px 12px; font-size: 13px; }
   .main { padding: 12px; }
   .card { padding: 13px; border-radius: 10px; }

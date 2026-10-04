@@ -350,17 +350,19 @@ export default function App() {
             </div>
           )}
         </div>
-        {searchMsg && <span className="muted" role="status">{searchMsg}</span>}
+        {searchMsg && <span className="muted search-msg" role="status">{searchMsg}</span>}
+        <div className="actions">
         <span className={useLive ? 'badge live' : 'badge sim'}>{useLive ? t(lang, 'liveBadge') : t(lang, 'simBadge')}</span>
         <label className="muted" htmlFor="lang-sel" style={{ alignSelf: 'center' }}>🌐</label>
         <select id="lang-sel" value={lang} onChange={e => setLang(e.target.value as Lang)} style={{ width: 'auto' }} aria-label="Language">
           {LANGS.map(l => <option key={l.code} value={l.code}>{l.label}</option>)}
         </select>
         <button className="btn" onClick={() => setUseLive(v => !v)} title="Beginner: this one switch swaps demo numbers for real API rain">{useLive ? t(lang, 'demoData') : t(lang, 'liveRain')}</button>
-        <button className="btn" onClick={refreshLive}>{liveLoading ? 'Fetching…' : t(lang, 'refresh')}</button>
+        <button className="btn" onClick={refreshLive}>{liveLoading ? t(lang, 'fetching') : t(lang, 'refresh')}</button>
         <button className="btn" onClick={() => setTab('Alerts')}>🔔 {t(lang, 'alerts')} ({counts.warnings})</button>
         <button className="btn primary" onClick={runHeavyRainSim}>{t(lang, 'heavyRain')}</button>
         {demoBoost > 0 && <button className="btn" onClick={() => setDemoBoost(0)}>{t(lang, 'resetSim')}</button>}
+        </div>
       </div>
       <div className="ticker" aria-hidden="true"><span className="ticker-inner">
         {[...sorted.slice(0, 6), ...sorted.slice(0, 6)].map((z, i) => (
