@@ -47,20 +47,20 @@ export default function Bulletin({ doc }: { doc: BulletinDoc }) {
 
       <div className="bul-sec">
         <h3>2 · Priority risk matrix</h3>
-        <table className="bul-table">
+        <div className="tablewrap"><table className="bul-table">
           <thead><tr><th>#</th><th>District / Place (State)</th><th>Coords</th><th>Rain 24h / 7d</th><th>Slope · Soil</th><th>Index</th><th>Level</th><th>Primary driver</th></tr></thead>
           <tbody>{doc.rows.map((r, i) => (
             <tr key={r.zoneId}><td>{i + 1}</td><td>{r.district} / {r.place} ({r.state})</td><td>{r.lat.toFixed(2)}, {r.lon.toFixed(2)}</td><td>{r.rain24mm} / {r.rain7dmm} mm</td><td>{r.slopeDeg}° · {r.soil}</td><td><b>{r.score}</b></td><td>{r.level} ({levelCode(r.level)})</td><td>{r.reasons[0]}</td></tr>
           ))}</tbody>
-        </table>
+        </table></div>
       </div>
 
       <div className="bul-sec">
         <h3>3 · Infrastructure &amp; lifeline impact</h3>
-        <table className="bul-table">
+        <div className="tablewrap"><table className="bul-table">
           <thead><tr><th>Corridor</th><th>Segment</th><th>Status</th><th>Bypass if cut</th></tr></thead>
           <tbody>{doc.corridors.map((c, i) => <tr key={i}><td>{c.corridor}</td><td>{c.name}</td><td><b>{c.status}</b></td><td>{c.bypass}</td></tr>)}</tbody>
-        </table>
+        </table></div>
         <p className="muted-dark">Critical assets in HIGH/CRITICAL zones: {doc.rows.filter(r => r.level === 'HIGH' || r.level === 'CRITICAL').map(r => `${r.place} (${r.infrastructure.slice(0, 2).join(', ')})`).join(' · ') || 'none'}.</p>
       </div>
 
