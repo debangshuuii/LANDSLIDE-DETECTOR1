@@ -209,17 +209,23 @@ input[type="range"].sl-violet::-moz-range-thumb { background: #a78bfa; box-shado
 }
 /* ================= MOBILE UI (≤600px) ================= */
 @media (max-width: 600px) {
+  html, body { overflow-x: clip; }
   body { font-size: 15px; }
-  .topbar { gap: 8px; padding: 10px 12px; }
+  /* Problem 2: header must scroll away naturally on mobile — no sticky */
+  .topbar { position: static; gap: 10px; padding: 10px 12px; }
   .brand { font-size: 16px; flex: 1; min-width: 0; }
-  .brand-logo { height: 32px; width: 32px; }
-  .brand small { font-size: 10px; }
+  .brand-logo { height: 32px; width: 32px; flex-shrink: 0; }
+  .brand small { font-size: 10px; line-height: 1.4; }
   .search { order: 5; flex-basis: 100%; min-width: 0; }
+  .search input { min-width: 0; }
+  .search .btn { flex-shrink: 0; }
   .search-msg { order: 6; flex-basis: 100%; }
-  .actions { order: 7; flex-basis: 100%; flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
-  .actions::-webkit-scrollbar { display: none; }
-  .actions .btn, .actions select, .actions .badge { flex-shrink: 0; }
+  /* Problem 1: controls wrap into natural rows — never squeeze or x-scroll */
+  .actions { order: 7; flex-basis: 100%; min-width: 0; flex-wrap: wrap; overflow-x: visible; padding-bottom: 0; }
+  .actions .btn, .actions select { flex-shrink: 0; min-height: 44px; }
+  .actions .badge { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .topbar .btn { padding: 10px 12px; font-size: 13px; }
+  .main { min-width: 0; }
   .main { padding: 12px; }
   .card { padding: 13px; border-radius: 10px; }
   .stat { font-size: 24px; }
