@@ -35,7 +35,8 @@ a { color: var(--accent); }
 .layout { display: grid; grid-template-columns: 210px 1fr; min-height: calc(100vh - 120px); }
 .nav { border-right: 1px solid var(--border); padding: 14px 10px; background: #0d1729; display: flex; flex-direction: column; gap: 6px; }
 .nav button { text-align: left; padding: 10px 12px; border-radius: 8px; border: 1px solid transparent; background: transparent; color: var(--text); cursor: pointer; font-size: 14px; }
-.nav button.active, .nav button:hover { background: #16263f; border-color: var(--border); }
+.nav button.active { background: #16263f; border-color: rgba(56, 189, 248, 0.5); box-shadow: inset 2px 0 0 var(--accent), 0 0 12px rgba(56, 189, 248, 0.15); }
+.nav button:not(.active):hover { background: #16263f; border-color: var(--border); }
 .main { padding: 18px; max-width: 1250px; }
 .grid { display: grid; gap: 14px; }
 .g4 { grid-template-columns: repeat(4, 1fr); }
@@ -53,8 +54,8 @@ a { color: var(--accent); }
 .layout.nav-closed .nav button:not(.nav-collapse) { width: fit-content; margin-left: auto; margin-right: auto; padding: 10px 12px; }
 .layout.nav-closed .nav button .ico { font-size: 16px; }
 .layout.nav-closed .nav button .alert-badge { font-size: 10px; margin-left: 0; }
-.nav { transition: transform 0.3s ease; position: relative; }
-.nav-collapse { margin-top: auto; width: 100%; padding: 12px; border-radius: 10px; border: 1px solid var(--border); background: transparent; color: var(--muted); cursor: pointer; font-weight: 600; font-size: 14px; }
+.nav { transition: transform 0.3s ease; position: sticky; top: 8px; align-self: start; max-height: calc(100vh - 16px); max-height: calc(100dvh - 16px); overflow-y: auto; }
+.nav-collapse { margin-top: auto; width: 100%; padding: 12px; border-radius: 10px; border: 1px solid var(--border); background: rgba(10, 19, 38, 0.9); color: var(--muted); cursor: pointer; font-weight: 600; font-size: 14px; position: sticky; bottom: 0; }
 .nav-collapse:hover { border-color: var(--accent); color: var(--text); }
 .nav-fab { display: none; }
 .nav-backdrop { display: none; }

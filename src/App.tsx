@@ -144,7 +144,7 @@ export function makeBulletinDoc(args: {
 
 export default function App() {
   const [tab, setTab] = useState<Tab>('Dashboard');
-  const [navOpen, setNavOpen] = useState(true); // sliding nav drawer
+  const [navOpen, setNavOpen] = useState(() => typeof window === 'undefined' || window.innerWidth > 1000); // sliding nav drawer; off by default on phones
   const [lang, setLang] = useState<Lang>('en'); // whole-site language (nav + content + risk text)
   const [query, setQuery] = useState('');
   const [selectedId, setSelectedId] = useState('shillong-ekh');
