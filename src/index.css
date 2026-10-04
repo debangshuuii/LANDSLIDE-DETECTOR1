@@ -24,6 +24,7 @@ a { color: var(--accent); }
 .search { flex: 1; min-width: 200px; display: flex; gap: 8px; }
 .search input { flex: 1; padding: 9px 12px; border-radius: 8px; border: 1px solid var(--border); background: #0a1326; color: var(--text); }
 .actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.nav-menu { order: 8; margin-left: auto; font-size: 17px; padding: 9px 13px; border-color: rgba(56, 189, 248, 0.45); }
 .btn { padding: 9px 14px; border-radius: 8px; border: 1px solid var(--border); background: #16263f; color: var(--text); cursor: pointer; font-weight: 600; }
 .btn:hover { border-color: var(--accent); }
 .btn.primary { background: var(--accent); color: #04222f; border-color: transparent; }
@@ -60,14 +61,12 @@ a { color: var(--accent); }
 .nav { transition: transform 0.3s ease; position: sticky; top: 8px; align-self: start; max-height: calc(100vh - 16px); max-height: calc(100dvh - 16px); overflow-y: auto; }
 .nav-collapse { margin-top: auto; width: 100%; padding: 12px; border-radius: 10px; border: 1px solid var(--border); background: rgba(10, 19, 38, 0.9); color: var(--muted); cursor: pointer; font-weight: 600; font-size: 14px; position: sticky; bottom: 0; }
 .nav-collapse:hover { border-color: var(--accent); color: var(--text); }
-.nav-fab { display: none; }
 .nav-backdrop { display: none; }
 @media (max-width: 1000px) {
   .layout .nav, .layout.nav-closed .nav { display: flex; flex-direction: column; position: fixed; left: 0; top: 0; bottom: 0; width: min(280px, 84vw); z-index: 1500; overflow-y: auto; border-right: 1px solid var(--border); padding-top: 0; }
   .layout.nav-closed .nav { transform: translateX(-110%); }
   .layout.nav-closed .nav button { font-size: 14px; }
   .layout:not(.nav-closed) .nav-backdrop { display: block; position: fixed; inset: 0; z-index: 1400; background: rgba(0, 0, 0, 0.5); }
-  .layout.nav-closed .nav-fab { display: block; position: fixed; left: 12px; bottom: 86px; z-index: 1500; width: 46px; height: 46px; border-radius: 50%; border: 1px solid var(--accent); background: #16263f; color: var(--text); font-size: 20px; cursor: pointer; box-shadow: 0 0 16px rgba(56, 189, 248, 0.35); }
 }
 .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
 .card h3 { margin: 0 0 10px 0; font-size: 15px; }
@@ -213,6 +212,7 @@ input[type="range"].sl-violet::-moz-range-thumb { background: #a78bfa; box-shado
 @media (max-width: 600px) {
   html, body { overflow-x: clip; }
   body { font-size: 15px; }
+  .nav-menu { order: 2; }
   /* foundation: every nesting level may shrink */
   .layout, .main, .grid, .card, .paper, .tablewrap { min-width: 0; max-width: 100%; }
   .recharts-wrapper, .recharts-surface { max-width: 100%; }

@@ -336,6 +336,7 @@ export default function App() {
             <small>MDoNER · EARLY WARNING &amp; HAZARD INTELLIGENCE</small>
           </div>
         </div>
+        <button className="btn nav-menu" onClick={() => setNavOpen(v => !v)} aria-label={navOpen ? 'Close navigation' : 'Open navigation'} aria-expanded={navOpen}>☰</button>
         <div className="search" style={{ position: 'relative' }}>
           <label htmlFor="site-search" className="muted" style={{ alignSelf: 'center' }}>{t(lang, 'search')}</label>
           <input id="site-search" placeholder="State / district / village / road — e.g. Shillong" value={query} onChange={e => { setQuery(e.target.value); setSearchMsg(''); }} onKeyDown={e => { if (e.key === 'Enter') runSearch(); }} autoComplete="off" />
@@ -388,7 +389,6 @@ export default function App() {
           ))}
           <button className="nav-collapse" onClick={() => setNavOpen(v => !v)} aria-label={navOpen ? 'Collapse navigation' : 'Expand navigation'} aria-expanded={navOpen}>{navOpen ? '◀ Collapse' : '▶'}</button>
         </nav>
-        {!navOpen && <button className="nav-fab" onClick={() => setNavOpen(true)} aria-label="Open navigation">☰</button>}
 
         <div className="main">
           {tab === 'Dashboard' && (
