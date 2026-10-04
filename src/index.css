@@ -44,7 +44,8 @@ a { color: var(--accent); }
 .g3 { grid-template-columns: repeat(3, 1fr); }
 .g2 { grid-template-columns: repeat(2, 1fr); }
 @media (max-width: 1000px) { .layout, .layout.nav-closed { grid-template-columns: 1fr; } .g4, .g3, .g2 { grid-template-columns: 1fr; } }
-/* sliding nav drawer: open = full sidebar, closed = slim icon rail */
+/* sliding nav drawer (desktop only): open = full sidebar, closed = slim icon rail */
+@media (min-width: 1001px) {
 .layout.nav-closed { grid-template-columns: 62px 1fr; }
 .layout.nav-closed .nav .nav-group { display: none; }
 .layout.nav-closed .nav { padding-top: 0; }
@@ -55,6 +56,7 @@ a { color: var(--accent); }
 .layout.nav-closed .nav button:not(.nav-collapse) { width: fit-content; margin-left: auto; margin-right: auto; padding: 10px 12px; }
 .layout.nav-closed .nav button .ico { font-size: 16px; }
 .layout.nav-closed .nav button .alert-badge { font-size: 10px; margin-left: 0; }
+}
 .nav { transition: transform 0.3s ease; position: sticky; top: 8px; align-self: start; max-height: calc(100vh - 16px); max-height: calc(100dvh - 16px); overflow-y: auto; }
 .nav-collapse { margin-top: auto; width: 100%; padding: 12px; border-radius: 10px; border: 1px solid var(--border); background: rgba(10, 19, 38, 0.9); color: var(--muted); cursor: pointer; font-weight: 600; font-size: 14px; position: sticky; bottom: 0; }
 .nav-collapse:hover { border-color: var(--accent); color: var(--text); }
