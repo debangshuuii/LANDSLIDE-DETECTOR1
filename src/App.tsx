@@ -406,7 +406,7 @@ export default function App() {
               <div className="grid g2">
                 <div className="card"><h3>{t(lang, 'topZones')}</h3>
                   <div className="tablewrap"><table className="table"><thead><tr><th>{t(lang, 'thPlace')}</th><th>{t(lang, 'thRain')}</th><th>{t(lang, 'thScore')}</th><th>{t(lang, 'thLevel')}</th></tr></thead><tbody>
-                    {sorted.slice(0, 6).map(z => <tr key={z.zone.id}><td><button className="btn" onClick={() => goToZone(z.zone.id)}>{z.zone.place}</button><div className="muted">{z.zone.district}, {z.zone.state} {z.live ? `· 🟢${t(lang, 'liveTag')}` : `· ${t(lang, 'demoTag')}`}</div></td><td>{Math.round(z.zone.rainfall24mm + demoBoost)} mm</td><td>{z.risk.score}</td><td><span className="riskpill" style={{ background: z.risk.color }}>{levelName(lang, z.risk.level)}</span></td></tr>)}
+                    {sorted.slice(0, 6).map(z => <tr key={z.zone.id}><td data-label={t(lang, 'thPlace')}><button className="btn" onClick={() => goToZone(z.zone.id)}>{z.zone.place}</button><div className="muted">{z.zone.district}, {z.zone.state} {z.live ? `· 🟢${t(lang, 'liveTag')}` : `· ${t(lang, 'demoTag')}`}</div></td><td data-label={t(lang, 'thRain')}>{Math.round(z.zone.rainfall24mm + demoBoost)} mm</td><td data-label={t(lang, 'thScore')}>{z.risk.score}</td><td data-label={t(lang, 'thLevel')}><span className="riskpill" style={{ background: z.risk.color }}>{levelName(lang, z.risk.level)}</span></td></tr>)}
                   </tbody></table></div>
                 </div>
                 <div className="card"><h3>{tv(lang, 'rainChart', HISTORICAL_AVG_RAINFALL_24)} ({useLive ? t(lang, 'liveTag') : t(lang, 'demoTag')}, top 8)</h3>
@@ -485,7 +485,7 @@ export default function App() {
             <div className="grid">
               <div className="card"><h3>{t(lang, 'rainMon')} <span className={useLive ? 'badge live' : 'badge sim'}>{useLive ? t(lang, 'liveFeed') : t(lang, 'simFeed')}</span></h3>
                 <div className="tablewrap"><table className="table"><thead><tr><th>{t(lang, 'thZone')}</th><th>{t(lang, 'th24')}</th><th>{t(lang, 'th7')}</th><th>{tv(lang, 'thAnom', HISTORICAL_AVG_RAINFALL_24)}</th><th>{t(lang, 'thMoist')}</th></tr></thead><tbody>
-                  {sorted.map(z => { const cur = Math.round(z.zone.rainfall24mm + demoBoost); const an = Math.round(((cur - HISTORICAL_AVG_RAINFALL_24) / HISTORICAL_AVG_RAINFALL_24) * 100); return <tr key={z.zone.id}><td>{z.zone.place}</td><td>{cur} mm</td><td>{Math.round(z.zone.rainfall7dmm + demoBoost * 2)} mm</td><td style={{ color: an > 50 ? '#ef4444' : an > 0 ? '#eab308' : '#22c55e' }}>{an > 0 ? `+${an}%` : `${an}%`}</td><td>{Math.min(96, Math.round(z.zone.soilMoisturePct + demoBoost / 6))}%</td></tr>; })}
+                  {sorted.map(z => { const cur = Math.round(z.zone.rainfall24mm + demoBoost); const an = Math.round(((cur - HISTORICAL_AVG_RAINFALL_24) / HISTORICAL_AVG_RAINFALL_24) * 100); return <tr key={z.zone.id}><td data-label={t(lang, 'thZone')}>{z.zone.place}</td><td data-label={t(lang, 'th24')}>{cur} mm</td><td data-label={t(lang, 'th7')}>{Math.round(z.zone.rainfall7dmm + demoBoost * 2)} mm</td><td data-label={tv(lang, 'thAnom', HISTORICAL_AVG_RAINFALL_24)} style={{ color: an > 50 ? '#ef4444' : an > 0 ? '#eab308' : '#22c55e' }}>{an > 0 ? `+${an}%` : `${an}%`}</td><td data-label={t(lang, 'thMoist')}>{Math.min(96, Math.round(z.zone.soilMoisturePct + demoBoost / 6))}%</td></tr>; })}
                 </tbody></table></div>
                 <p className="muted">{tv(lang, 'monSrc', { s: useLive ? 'Open-Meteo forecast API (free, no key)' : t(lang, 'simBadge'), u: useLive && liveAt ? liveAt : bootTime, m: useLive ? t(lang, 'liveEst') : t(lang, 'simBadge') })}</p>
               </div>
@@ -528,7 +528,7 @@ export default function App() {
           {tab === 'Incidents' && (
             <div className="card"><h3>{t(lang, 'histDb')} <span className="badge sim">{t(lang, 'histBadge')}</span></h3>
               <div className="tablewrap"><table className="table"><thead><tr><th>{t(lang, 'thDate')}</th><th>{t(lang, 'thPlace')}</th><th>{t(lang, 'thTrigger')}</th><th>{t(lang, 'thSev')}</th><th>{t(lang, 'thImpact')}</th><th>{t(lang, 'thSource')}</th></tr></thead><tbody>
-                {HISTORICAL_INCIDENTS.map(h => <tr key={h.id}><td>{h.date}</td><td>{h.place}<div className="muted">{h.district}, {h.state} {h.demo && '(DEMO)'}</div></td><td>{h.trigger}</td><td>{h.severity}</td><td>{h.infraImpact}</td><td className="muted">{h.source}</td></tr>)}
+                {HISTORICAL_INCIDENTS.map(h => <tr key={h.id}><td data-label={t(lang, 'thDate')}>{h.date}</td><td data-label={t(lang, 'thPlace')}>{h.place}<div className="muted">{h.district}, {h.state} {h.demo && '(DEMO)'}</div></td><td data-label={t(lang, 'thTrigger')}>{h.trigger}</td><td data-label={t(lang, 'thSev')}>{h.severity}</td><td data-label={t(lang, 'thImpact')}>{h.infraImpact}</td><td data-label={t(lang, 'thSource')} className="muted">{h.source}</td></tr>)}
               </tbody></table></div>
             </div>
           )}
@@ -538,16 +538,16 @@ export default function App() {
               <CorridorMonitor levelOf={levelOf} lang={lang} />
               <div className="card"><h3>{t(lang, 'critInfra')} <span className="badge sim">{t(lang, 'potExp')}</span></h3>
               <div className="tablewrap"><table className="table"><thead><tr><th>{t(lang, 'thZone')}</th><th>{t(lang, 'thRisk')}</th><th>{t(lang, 'thRoads')}</th><th>{t(lang, 'thInfra')}</th><th>{t(lang, 'thPop')}</th></tr></thead><tbody>
-                {sorted.filter(z => levelRank(z.risk.level) >= 2).map(z => <tr key={z.zone.id}><td>{z.zone.place}</td><td><span className="riskpill" style={{ background: z.risk.color }}>{levelName(lang, z.risk.level)}</span></td><td>{z.zone.roads.join('; ')}</td><td>{z.zone.infrastructure.join('; ')}</td><td>{z.zone.populationExposed.toLocaleString()}</td></tr>)}
+                {sorted.filter(z => levelRank(z.risk.level) >= 2).map(z => <tr key={z.zone.id}><td data-label={t(lang, 'thZone')}>{z.zone.place}</td><td data-label={t(lang, 'thRisk')}><span className="riskpill" style={{ background: z.risk.color }}>{levelName(lang, z.risk.level)}</span></td><td data-label={t(lang, 'thRoads')}>{z.zone.roads.join('; ')}</td><td data-label={t(lang, 'thInfra')}>{z.zone.infrastructure.join('; ')}</td><td data-label={t(lang, 'thPop')}>{z.zone.populationExposed.toLocaleString()}</td></tr>)}
               </tbody></table></div>
               <p className="muted">{t(lang, 'roadNote')}</p>
               </div>
               <div className="card"><h3>{t(lang, 'intervTitle')}</h3>
               <div className="tablewrap"><table className="table"><thead><tr><th>{t(lang, 'thZone')}</th><th>{t(lang, 'thActivity')}</th><th>{t(lang, 'thToe')}</th><th>{t(lang, 'thSpoil')}</th></tr></thead><tbody>
                 {sorted.map(z => { const iv = ecoOf(z.zone.id).intervention; const none = iv.activity === 'None reported'; return (
-                  <tr key={z.zone.id}><td>{z.zone.place}</td><td>{none ? t(lang, 'intervNone') : iv.activity}</td>
-                  <td><span className="riskpill" style={{ background: iv.toe === 'Exposed' ? '#ef4444' : iv.toe === 'Partial' ? '#f97316' : '#22c55e' }}>{iv.toe === 'Exposed' ? t(lang, 'toeExposed') : iv.toe === 'Partial' ? t(lang, 'toePartial') : t(lang, 'toeSupported')}</span></td>
-                  <td>{iv.spoil ? '⚠️' : '—'}</td></tr>); })}
+                  <tr key={z.zone.id}><td data-label={t(lang, 'thZone')}>{z.zone.place}</td><td data-label={t(lang, 'thActivity')}>{none ? t(lang, 'intervNone') : iv.activity}</td>
+                  <td data-label={t(lang, 'thToe')}><span className="riskpill" style={{ background: iv.toe === 'Exposed' ? '#ef4444' : iv.toe === 'Partial' ? '#f97316' : '#22c55e' }}>{iv.toe === 'Exposed' ? t(lang, 'toeExposed') : iv.toe === 'Partial' ? t(lang, 'toePartial') : t(lang, 'toeSupported')}</span></td>
+                  <td data-label={t(lang, 'thSpoil')}>{iv.spoil ? '⚠️' : '—'}</td></tr>); })}
               </tbody></table></div>
               </div>
             </div>

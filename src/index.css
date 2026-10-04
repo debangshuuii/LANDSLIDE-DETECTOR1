@@ -211,6 +211,10 @@ input[type="range"].sl-violet::-moz-range-thumb { background: #a78bfa; box-shado
 @media (max-width: 600px) {
   html, body { overflow-x: clip; }
   body { font-size: 15px; }
+  /* foundation: every nesting level may shrink */
+  .layout, .main, .grid, .card, .paper, .tablewrap { min-width: 0; max-width: 100%; }
+  .recharts-wrapper, .recharts-surface { max-width: 100%; }
+  .leaflet-container { max-width: 100%; }
   /* Problem 2: header must scroll away naturally on mobile — no sticky */
   .topbar { position: static; gap: 10px; padding: 10px 12px; }
   .brand { font-size: 16px; flex: 1; min-width: 0; }
@@ -229,8 +233,18 @@ input[type="range"].sl-violet::-moz-range-thumb { background: #a78bfa; box-shado
   .main { padding: 12px; }
   .card { padding: 13px; border-radius: 10px; }
   .stat { font-size: 24px; }
-  .table { font-size: 12.5px; min-width: 520px; }
+  .table { font-size: 12.5px; min-width: 0; }
   .table th, .table td { padding: 7px 8px; }
+  /* stacked card tables v2: no sideways scroll, headers become labels */
+  .table thead, .bul-table thead { display: none; }
+  .table, .table tbody, .table tr, .table td,
+  .bul-table, .bul-table tbody, .bul-table tr, .bul-table td { display: block; width: 100%; }
+  .table tr { border: 1px solid var(--border); border-radius: 10px; margin-bottom: 10px; padding: 4px 2px; }
+  .table td { border-bottom: none; padding: 5px 10px; }
+  .table td::before { content: attr(data-label); display: block; font-size: 10.5px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 2px; }
+  .bul-table tr { border: 1px solid #9ca3af; border-radius: 8px; margin-bottom: 10px; padding: 4px 2px; background: #fff; }
+  .bul-table td { border: none; padding: 4px 10px; color: #111827; }
+  .bul-table td::before { content: attr(data-label); display: block; font-size: 10px; color: #4b5563; text-transform: uppercase; letter-spacing: 0.5px; }
   .paper { padding: 16px 14px; }
   .bul-table { font-size: 10px; }
   .ticker { font-size: 11.5px; }

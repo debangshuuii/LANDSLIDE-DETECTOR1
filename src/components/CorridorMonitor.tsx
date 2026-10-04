@@ -16,7 +16,7 @@ export default function CorridorMonitor({ levelOf, lang }: { levelOf: (zoneId: s
         <tbody>{CORRIDORS.map((c, i) => {
           const st = corridorStatus(c.zoneIds.map(levelOf));
           const color = st === 'BLOCKED' ? '#ef4444' : st === 'RESTRICTED' ? '#f97316' : '#22c55e';
-          return <tr key={i}><td>{c.corridor}</td><td>{c.name}</td><td><span className="riskpill" style={{ background: color }}>{statusLabel(lang, st)}</span></td><td className="muted">{c.bypass}</td></tr>;
+          return <tr key={i}><td data-label={t(lang, 'thCorr')}>{c.corridor}</td><td data-label={t(lang, 'thSeg')}>{c.name}</td><td data-label={t(lang, 'thStatus')}><span className="riskpill" style={{ background: color }}>{statusLabel(lang, st)}</span></td><td data-label={t(lang, 'thBypass')} className="muted">{c.bypass}</td></tr>;
         })}</tbody>
       </table></div>
       <p className="muted">{t(lang, 'mapNote')}</p>

@@ -50,7 +50,7 @@ export default function Bulletin({ doc }: { doc: BulletinDoc }) {
         <table className="bul-table">
           <thead><tr><th>#</th><th>District / Place (State)</th><th>Coords</th><th>Rain 24h / 7d</th><th>Slope · Soil</th><th>Index</th><th>Level</th><th>Primary driver</th></tr></thead>
           <tbody>{doc.rows.map((r, i) => (
-            <tr key={r.zoneId}><td>{i + 1}</td><td>{r.district} / {r.place} ({r.state})</td><td>{r.lat.toFixed(2)}, {r.lon.toFixed(2)}</td><td>{r.rain24mm} / {r.rain7dmm} mm</td><td>{r.slopeDeg}° · {r.soil}</td><td><b>{r.score}</b></td><td>{r.level} ({levelCode(r.level)})</td><td>{r.reasons[0]}</td></tr>
+            <tr key={r.zoneId}><td data-label="#"> {i + 1}</td><td data-label="District / Place">{r.district} / {r.place} ({r.state})</td><td data-label="Coords">{r.lat.toFixed(2)}, {r.lon.toFixed(2)}</td><td data-label="Rain 24h/7d">{r.rain24mm} / {r.rain7dmm} mm</td><td data-label="Slope·Soil">{r.slopeDeg}° · {r.soil}</td><td data-label="Index"><b>{r.score}</b></td><td data-label="Level">{r.level} ({levelCode(r.level)})</td><td data-label="Driver">{r.reasons[0]}</td></tr>
           ))}</tbody>
         </table>
       </div>
@@ -59,7 +59,7 @@ export default function Bulletin({ doc }: { doc: BulletinDoc }) {
         <h3>3 · Infrastructure &amp; lifeline impact</h3>
         <table className="bul-table">
           <thead><tr><th>Corridor</th><th>Segment</th><th>Status</th><th>Bypass if cut</th></tr></thead>
-          <tbody>{doc.corridors.map((c, i) => <tr key={i}><td>{c.corridor}</td><td>{c.name}</td><td><b>{c.status}</b></td><td>{c.bypass}</td></tr>)}</tbody>
+          <tbody>{doc.corridors.map((c, i) => <tr key={i}><td data-label="Corridor">{c.corridor}</td><td data-label="Segment">{c.name}</td><td data-label="Status"><b>{c.status}</b></td><td data-label="Bypass">{c.bypass}</td></tr>)}</tbody>
         </table>
         <p className="muted-dark">Critical assets in HIGH/CRITICAL zones: {doc.rows.filter(r => r.level === 'HIGH' || r.level === 'CRITICAL').map(r => `${r.place} (${r.infrastructure.slice(0, 2).join(', ')})`).join(' · ') || 'none'}.</p>
       </div>
