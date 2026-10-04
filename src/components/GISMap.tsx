@@ -29,8 +29,13 @@ export default function GISMap({ zones, layers, setLayers, selectedId, focusTick
   useLive: boolean;
   onToggleLive: () => void;
 }) {
+  // Dark base: Esri Canvas Dark Gray (keyless). If the user adds a free
+  // CARTO key as VITE_CARTO_KEY, CARTO Dark Matter is used instead.
+  const cartoKey = (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_CARTO_KEY;
   const BASES: Record<Base, { url: string; attr: string; label: string }> = {
-    dark: { url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', attr: '© OpenStreetMap contributors © CARTO', label: 'Dark' },
+    dark: cartoKey
+      ? { url: `https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=${cartoKey}`, attr: '© OpenStreetMap contributors © CARTO', label: 'Dark' }
+      : { url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', attr: '© OpenStreetMap contributors, Esri Dark Gray', label: 'Dark' },
     streets: { url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', attr: '© OpenStreetMap contributors', label: t(lang, 'streets') },
     topo: { url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', attr: '© OpenStreetMap contributors, SRTM | style: © OpenTopoMap (CC-BY-SA)', label: t(lang, 'topo') },
     satellite: { url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', attr: 'Imagery © Esri & contributors', label: t(lang, 'satellite') },
