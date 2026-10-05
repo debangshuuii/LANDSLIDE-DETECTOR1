@@ -76,7 +76,7 @@ export default function CommunityForm({ reports, setReports, lang }: { reports: 
         }}>{t(lang, 'submit')}</button></div>
         <p className="muted">{t(lang, 'offlineNote')}</p>
       </div>
-      <div className="card"><h3>{t(lang, 'submitted')} ({reports.length})</h3>{reports.map(r => <div key={r.id} className="card" style={{ marginTop: 8 }}><b>{r.place}</b> <span className="badge">{r.status}</span><p className="muted">{r.district}, {r.state} · {r.severity}</p>{r.tek && r.tek.length > 0 && <ul className="muted">{r.tek.map(k => <li key={k}>{t(lang, k)}</li>)}</ul>}</div>)}</div>
+      <div className="card"><h3>{t(lang, 'submitted')} ({reports.length})</h3>{reports.map(r => <div key={r.id} className="card" style={{ marginTop: 8 }}><b>{r.place}</b> <span className="badge">{r.status}</span>{(r.status === 'NEW' || r.status === 'UNDER REVIEW') && <span className="badge sim" style={{ marginLeft: 6 }}>{t(lang, 'unverifiedT')}</span>}<p className="muted">{r.district}, {r.state} · {r.severity}</p>{r.tek && r.tek.length > 0 && <ul className="muted">{r.tek.map(k => <li key={k}>{t(lang, k)}</li>)}</ul>}</div>)}</div>
     </div>
   );
 }

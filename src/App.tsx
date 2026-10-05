@@ -6,14 +6,18 @@ import { CORRIDORS, corridorStatus } from './data/corridors';
 import { assessZone, WARNING_META, levelRank, type RiskLevel } from './lib/riskEngine';
 import { fetchAllLiveWeather, loadCachedWeather, type LiveWeather } from './lib/weather';
 import { fetchForecast72h, forecastTotal, type HourPoint } from './lib/forecast';
-import { ecoOf } from './data/eco';
+import { ecoOf, envOf, jhumCycle } from './data/eco';
 import { nbsFor, glofNote, ecoDirectives } from './lib/eco';
+import { deforVelocity, ndviClass, watershedOf, carbonAtRisk, bioLabel, eviFor } from './lib/env';
+import { DATA_MODE } from './lib/dataMode';
 import { LANGS, t, tv, levelName, type Lang } from './lib/i18n';
 import { useLocalAlerts, useLocalReports, makeId, trend24h, type CommunityReport } from './lib/store';
 import GISMap from './components/GISMap';
 import WhatIfPanel from './components/WhatIfPanel';
 import CommunityForm from './components/CommunityForm';
 import CorridorMonitor from './components/CorridorMonitor';
+import NbsTracker from './components/NbsTracker';
+import DataAbout, { DataModeBadge } from './components/DataAbout';
 import TerrainSection from './components/TerrainSection';
 import SOSDrawer from './components/SOSDrawer';
 import Bulletin, { openBulletinPrint, type BulletinDoc } from './components/Bulletin';
@@ -149,7 +153,7 @@ export default function App() {
   const [query, setQuery] = useState('');
   const [selectedId, setSelectedId] = useState('shillong-ekh');
   const [demoBoost, setDemoBoost] = useState(0); // mm added by demo simulation
-  const [layers, setLayers] = useState({ risk: true, rain: true, hist: true, infra: false });
+  const [layers, setLayers] = useState({ risk: true, rain: true, hist: true, infra: false, defor: false, glof: false, river: false });
   const [bootTime] = useState(() => new Date().toLocaleString()); // stable timestamp, not re-rendered
   // --- LIVE WEATHER (Step 1) ---
   const [useLive, setUseLive] = useState(true); // live rain auto-starts on every visit
@@ -275,6 +279,33 @@ export default function App() {
     refNo: bulRef, issuedAt: new Date().toLocaleString(), sourceLabel, boost: demoBoost, focus: focusLabel,
   }), [zones, alerts.length, reports.length, bulRef, sourceLabel, demoBoost, focusLabel]);
   const [printBusy, setPrintBusy] = useState('');
+  const [showDataAbout, setShowDataAbout] = useState(false);
+  // Ecological aggregates for the dashboard pulse (all demo estimates).
+  const ecoAgg = useMemo(() => {
+    let worstLoss = { place: '', v: -1 };
+    let worstNdvi = { place: '', v: 999 };
+    let wsHigh = 0, bioCrit = 0, maxTemp = -99;
+    let worstEvi = { place: '', score: -1, level: 'LOW' };
+    const alerts: string[] = [];
+    for (const z of zones) {
+      const env = envOf(z.zone.id);
+      if (env.annualLossPct > worstLoss.v) worstLoss = { place: z.zone.place, v: env.annualLossPct };
+      const anom = env.ndvi - env.ndviBase;
+      if (anom < worstNdvi.v) worstNdvi = { place: z.zone.place, v: anom };
+      const ws = watershedOf(z.zone);
+      if (ws.sediment === 'HIGH') wsHigh++;
+      if (env.bioSens >= 4) bioCrit++;
+      if (env.tempAnomC > maxTemp) maxTemp = env.tempAnomC;
+      const ev = eviFor(z.zone, z.risk.score);
+      if (ev.score > worstEvi.score) worstEvi = { place: z.zone.place, score: ev.score, level: ev.level };
+    }
+    if (worstLoss.v >= 1.8) alerts.push(tv(lang, 'ecoA1', `${worstLoss.place} ${worstLoss.v}%/yr`));
+    if (wsHigh > 0) alerts.push(tv(lang, 'ecoA2', wsHigh));
+    if (worstNdvi.v <= -0.1) alerts.push(tv(lang, 'ecoA3', `${worstNdvi.place} ${Math.round(worstNdvi.v * 100)}%`));
+    if (bioCrit > 0) alerts.push(tv(lang, 'ecoA4', bioCrit));
+    if (zones.some(z => ecoOf(z.zone.id).glacial)) alerts.push(t(lang, 'ecoA5'));
+    return { worstLoss, worstNdvi, wsHigh, bioCrit, maxTemp, worstEvi, alerts };
+  }, [zones, lang]);
   // LIVE print: re-sync rain, rebuild everything from current time + place,
   // then open the PDF. Every download differs by timestamp + live data.
   const printLiveBulletin = async () => {
@@ -358,6 +389,7 @@ export default function App() {
         <select id="lang-sel" value={lang} onChange={e => setLang(e.target.value as Lang)} style={{ width: 'auto' }} aria-label="Language">
           {LANGS.map(l => <option key={l.code} value={l.code}>{l.label}</option>)}
         </select>
+        <button className="btn" onClick={() => setShowDataAbout(true)} title="About this data">ⓘ</button>
         <button className="btn" onClick={() => setUseLive(v => !v)} title="Beginner: this one switch swaps demo numbers for real API rain">{useLive ? t(lang, 'demoData') : t(lang, 'liveRain')}</button>
         <button className="btn" onClick={refreshLive}>{liveLoading ? t(lang, 'fetching') : t(lang, 'refresh')}</button>
         <button className="btn" onClick={() => setTab('Alerts')}>🔔 {t(lang, 'alerts')} ({counts.warnings})</button>
@@ -402,6 +434,19 @@ export default function App() {
                   <div className="card"><div className="muted">{t(lang, 'activeWarn')}</div><div className="stat mono">{counts.warnings}</div><div className="kpi-sub">{t(lang, 'earlyWarn').split('(')[0]}</div></div>
                   <div className="card"><div className="muted">{t(lang, 'popExp')}</div><div className="stat mono">{(counts.exposed / 1000).toFixed(0)}k</div><div className="kpi-sub">{zones.length} {t(lang, 'thZone')} · {t(lang, 'potExp')}</div></div>
                 </div>
+              </div>
+              <div className="card">
+                <h3>{t(lang, 'ecoDashT')} <DataModeBadge lang={lang} /> · {t(lang, 'eviT')}: <b>{ecoAgg.worstEvi.place} {ecoAgg.worstEvi.score}</b></h3>
+                <div className="grid g6">
+                  <div className="card"><div className="muted">{t(lang, 'forestLossT')}</div><div className="stat mono">↑{ecoAgg.worstLoss.v}%</div><div className="kpi-sub">{ecoAgg.worstLoss.place}</div></div>
+                  <div className="card"><div className="muted">{t(lang, 'ndviT')}</div><div className="stat mono">{Math.round(ecoAgg.worstNdvi.v * 100)}%</div><div className="kpi-sub">{ecoAgg.worstNdvi.place}</div></div>
+                  <div className="card"><div className="muted">{t(lang, 'watershedT')}</div><div className="stat mono">{ecoAgg.wsHigh}</div><div className="kpi-sub">HIGH</div></div>
+                  <div className="card"><div className="muted">{t(lang, 'biodivT')}</div><div className="stat mono">{ecoAgg.bioCrit}</div><div className="kpi-sub">CRITICAL</div></div>
+                  <div className="card"><div className="muted">{t(lang, 'climStressT')}</div><div className="stat mono">+{ecoAgg.maxTemp.toFixed(1)}°</div></div>
+                  <div className="card"><div className="muted">{t(lang, 'eviT')}</div><div className="stat mono">{ecoAgg.worstEvi.score}</div><div className="kpi-sub">{ecoAgg.worstEvi.place}</div></div>
+                </div>
+                <h3 style={{ marginTop: 12 }}>{t(lang, 'ecoAlertsT')}</h3>
+                <ul className="muted">{ecoAgg.alerts.map(a => <li key={a}>{a}</li>)}</ul>
               </div>
               <div className="grid g2">
                 <div className="card"><h3>{t(lang, 'topZones')}</h3>
@@ -461,13 +506,44 @@ export default function App() {
                 <h3>{t(lang, 'whyRisk')}</h3>
                 <ul className="muted">{selected.risk.reasons.map(r => <li key={r}>{r}</li>)}</ul>
                 <p className="muted">{t(lang, 'idCheck')}: <b style={{ color: selected.risk.id.exceeded ? '#ef4444' : '#22c55e' }}>{selected.risk.id.exceeded ? t(lang, 'exceeded') : t(lang, 'okWord')}</b> — {selected.risk.id.note}</p>
-                <h3>{t(lang, 'ecoHealth')} — {selected.zone.place}</h3>
-                {(() => { const e = ecoOf(selected.zone.id); const g = glofNote(selected.zone.id, lang); return (<>
-                  <p className="muted">{t(lang, 'canopy')}: <b>{e.canopyPct}%</b> · {t(lang, 'roots')}: <b>{e.roots === 'Deep' ? t(lang, 'rtDeep') : e.roots === 'Mixed' ? t(lang, 'rtMixed') : t(lang, 'rtShallow')}</b> · {t(lang, 'drainage')}: <b>{e.drainage === 'Free' ? t(lang, 'drFree') : e.drainage === 'Partial' ? t(lang, 'drPartial') : t(lang, 'drBlocked')}</b></p>
-                  {g && <p className="muted">{g}</p>}
-                </>); })()}
-                <h3>{t(lang, 'nbsTitle')}</h3>
-                <ul className="muted">{nbsFor(selected.zone).map(n => <li key={n.name}><b>{n.name}</b> — {t(lang, n.whyKey)}</li>)}</ul>
+                <h3>{t(lang, 'ecoProfileT')} — {selected.zone.place} <DataModeBadge lang={lang} /></h3>
+                {(() => {
+                  const e = ecoOf(selected.zone.id);
+                  const env = envOf(selected.zone.id);
+                  const g = glofNote(selected.zone.id, lang);
+                  const ev = eviFor(selected.zone, selected.risk.score);
+                  const vel = deforVelocity(env.annualLossPct);
+                  const velName = vel.label === 'Stable' ? t(lang, 'velStable') : vel.label === 'Low' ? t(lang, 'velLow') : vel.label === 'Moderate' ? t(lang, 'velMod') : vel.label === 'High' ? t(lang, 'velHigh') : t(lang, 'velCrit');
+                  const ndv = ndviClass(env.ndvi);
+                  const ndvName = ndv === 'Healthy' ? t(lang, 'ndvHealthy') : ndv === 'Moderate' ? t(lang, 'ndvModerate') : ndv === 'Stressed' ? t(lang, 'ndvStressed') : t(lang, 'ndvSevere');
+                  const ws = watershedOf(selected.zone);
+                  const cyc = jhumCycle(env.landUse);
+                  const anom = Math.round((env.ndvi - env.ndviBase) * 100);
+                  const evName: string = ev.level === 'ELEVATED' ? t(lang, 'elevWord') : levelName(lang, ev.level);
+                  return (<>
+                    <p><span className="riskpill" style={{ background: ev.level === 'CRITICAL' ? '#ef4444' : ev.level === 'HIGH' ? '#f97316' : ev.level === 'ELEVATED' ? '#eab308' : ev.level === 'MODERATE' ? '#a3a32a' : '#22c55e' }}>{t(lang, 'eviT')}: {ev.score}/100 · {evName}</span> <span className="muted">{t(lang, 'estProb')} · {t(lang, 'riskmap')}: {selected.risk.score} ({levelName(lang, selected.risk.level)})</span></p>
+                    {ev.parts.map(p => <div key={p.key} style={{ margin: '4px 0' }}><div className="row" style={{ justifyContent: 'space-between' }}><span className="muted">{p.key}</span><span className="muted">{Math.round(p.value)}</span></div><div className="factorbar"><div style={{ width: `${p.value}%` }} /></div></div>)}
+                    <h3>{t(lang, 'forHealthT')}</h3>
+                    <p className="muted">{t(lang, 'canopy')}: <b>{e.canopyPct}%</b> · {t(lang, 'histCanopy')}: <b>{env.histCanopyPct}%</b> · {t(lang, 'annLoss')}: <b>{env.annualLossPct}%</b></p>
+                    <p><span className="riskpill" style={{ background: vel.color }}>{t(lang, 'defTrend')}: {velName}</span></p>
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'flex-end', height: 60, margin: '6px 0' }}>
+                      <div style={{ flex: env.histCanopyPct, background: '#22c55e', borderRadius: 4, height: '100%', minWidth: 40, textAlign: 'center', fontSize: 11 }}>{env.histCanopyPct}%</div>
+                      <div style={{ flex: e.canopyPct, background: '#f97316', borderRadius: 4, height: `${Math.max(8, (e.canopyPct / env.histCanopyPct) * 100)}%`, minWidth: 40, textAlign: 'center', fontSize: 11 }}>{e.canopyPct}%</div>
+                    </div>
+                    <p className="muted">{t(lang, 'canopy')}: {t(lang, 'roots')}: <b>{e.roots === 'Deep' ? t(lang, 'rtDeep') : e.roots === 'Mixed' ? t(lang, 'rtMixed') : t(lang, 'rtShallow')}</b> · {t(lang, 'drainage')}: <b>{e.drainage === 'Free' ? t(lang, 'drFree') : e.drainage === 'Partial' ? t(lang, 'drPartial') : t(lang, 'drBlocked')}</b></p>
+                    <h3>{t(lang, 'ndviT')} <span className="badge sim">DEMO</span></h3>
+                    <p className="muted">{t(lang, 'ndviCur')}: <b>{env.ndvi.toFixed(2)}</b> · {t(lang, 'ndviBase')}: <b>{env.ndviBase.toFixed(2)}</b> · {t(lang, 'ndviAnom')}: <b>{anom}%</b> · {ndvName}</p>
+                    <h3>{t(lang, 'wsImpactT')}</h3>
+                    <p className="muted">~{selected.zone.distRiverM}m · {t(lang, 'sedRisk')}: <b>{levelName(lang, ws.sediment)}</b> · {t(lang, 'wsSens')}: <b>{levelName(lang, ws.sensitivity)}</b> · {t(lang, 'downstream')}: <b>{levelName(lang, ws.downstream)}</b></p>
+                    <h3>{t(lang, 'carbBioT')}</h3>
+                    <p className="muted">{t(lang, 'carbonT')}: <b>≈ {carbonAtRisk(selected.zone.id).toLocaleString()} tCO₂e</b> · {t(lang, 'confMod')}</p>
+                    <p className="muted">{t(lang, 'bioSensT')}: <b>{levelName(lang, bioLabel(env.bioSens))}</b></p>
+                    <h3>{t(lang, 'climLandT')}</h3>
+                    <p className="muted">{t(lang, 'tempAnom')}: <b>+{env.tempAnomC.toFixed(1)}°C</b> · {t(lang, 'jhumT')}: <b>{env.landUse}</b>{cyc ? ` (${cyc})` : ''}</p>
+                    {e.glacial && <><h3>{t(lang, 'glofSecT')}</h3><p className="muted">{t(lang, 'tempAnom')}: <b>+{env.tempAnomC.toFixed(1)}°C</b> · {t(lang, 'lakeSens')}: <b>{levelName(lang, env.lakeSens)}</b></p>{g && <p className="muted">{g}</p>}</>}
+                    <div className="card" style={{ marginTop: 10 }}><NbsTracker zone={selected.zone} lang={lang} /></div>
+                  </>);
+                })()}
                 <h3>{t(lang, 'terrainTitle')}</h3>
                 <TerrainSection slopeDeg={selected.zone.slopeDeg} moisturePct={selected.zone.soilMoisturePct} />
                 <p className="muted">{tv(lang, 'schemNote', selected.zone.elevationM)}</p>
@@ -528,7 +604,11 @@ export default function App() {
           {tab === 'Incidents' && (
             <div className="card"><h3>{t(lang, 'histDb')} <span className="badge sim">{t(lang, 'histBadge')}</span></h3>
               <div className="tablewrap"><table className="table"><thead><tr><th>{t(lang, 'thDate')}</th><th>{t(lang, 'thPlace')}</th><th>{t(lang, 'thTrigger')}</th><th>{t(lang, 'thSev')}</th><th>{t(lang, 'thImpact')}</th><th>{t(lang, 'thSource')}</th></tr></thead><tbody>
-                {HISTORICAL_INCIDENTS.map(h => <tr key={h.id}><td data-label={t(lang, 'thDate')}>{h.date}</td><td data-label={t(lang, 'thPlace')}>{h.place}<div className="muted">{h.district}, {h.state} {h.demo && '(DEMO)'}</div></td><td data-label={t(lang, 'thTrigger')}>{h.trigger}</td><td data-label={t(lang, 'thSev')}>{h.severity}</td><td data-label={t(lang, 'thImpact')}>{h.infraImpact}</td><td data-label={t(lang, 'thSource')} className="muted">{h.source}</td></tr>)}
+                {HISTORICAL_INCIDENTS.map(h => {
+                  const yr = parseInt(h.date.slice(0, 4), 10);
+                  const prog = yr <= 2020 ? 78 : yr === 2021 ? 64 : yr === 2022 ? 45 : yr === 2023 ? 30 : 20;
+                  return <tr key={h.id}><td data-label={t(lang, 'thDate')}>{h.date}</td><td data-label={t(lang, 'thPlace')}>{h.place}<div className="muted">{h.district}, {h.state} {h.demo && '(DEMO)'}</div>{(h.severity === 'Major' || h.severity === 'Catastrophic') && <details><summary className="muted">{t(lang, 'recT')}</summary><div className="muted">{t(lang, 'recProg')}: {prog}%</div><div className="factorbar"><div style={{ width: `${prog}%` }} /></div><ul className="muted"><li>{t(lang, 'recP1')}</li><li>{t(lang, 'recP2')}</li><li>{t(lang, 'recP3')}</li><li>{t(lang, 'recP4')}</li></ul></details>}</td><td data-label={t(lang, 'thTrigger')}>{h.trigger}</td><td data-label={t(lang, 'thSev')}>{h.severity}</td><td data-label={t(lang, 'thImpact')}>{h.infraImpact}</td><td data-label={t(lang, 'thSource')} className="muted">{h.source}</td></tr>;
+                })}
               </tbody></table></div>
             </div>
           )}
@@ -586,6 +666,7 @@ export default function App() {
         </div>
       </div>
       <SOSDrawer place={selected.zone.place} district={selected.zone.district} infra={selected.zone.infrastructure} rainMm={selected.zone.rainfall24mm + demoBoost} live={selected.live} lang={lang} />
+      {showDataAbout && <DataAbout onClose={() => setShowDataAbout(false)} lang={lang} />}
       <div className="footer">{t(lang, 'footer')}</div>
     </>
   );

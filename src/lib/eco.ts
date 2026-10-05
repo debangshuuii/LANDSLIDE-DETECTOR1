@@ -4,7 +4,7 @@ import { ecoOf } from '../data/eco';
 import type { NerZone } from '../data/nerDistricts';
 
 // Traditional Ecological Knowledge precursors for 1-tap field reporting.
-export const TEK_OPTIONS = ['tekMuddy', 'tekSpring', 'tekTrees', 'tekCracks'] as const;
+export const TEK_OPTIONS = ['tekMuddy', 'tekSpring', 'tekTrees', 'tekCracks', 'tekRockfall', 'tekAnimals', 'tekVegLoss', 'tekDrainBlock', 'tekSoilMove', 'tekWaterFlow'] as const;
 export type TekKey = (typeof TEK_OPTIONS)[number];
 
 export interface NbsItem { name: string; whyKey: string }

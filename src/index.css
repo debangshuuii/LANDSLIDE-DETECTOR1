@@ -42,9 +42,10 @@ a { color: var(--accent); }
 .main { padding: 18px; max-width: 1250px; }
 .grid { display: grid; gap: 14px; }
 .g4 { grid-template-columns: repeat(4, 1fr); }
+.g6 { grid-template-columns: repeat(6, 1fr); }
 .g3 { grid-template-columns: repeat(3, 1fr); }
 .g2 { grid-template-columns: repeat(2, 1fr); }
-@media (max-width: 1000px) { .layout, .layout.nav-closed { grid-template-columns: 1fr; } .g4, .g3, .g2 { grid-template-columns: 1fr; } }
+@media (max-width: 1000px) { .layout, .layout.nav-closed { grid-template-columns: 1fr; } .g4, .g3, .g2 { grid-template-columns: 1fr; } .g6 { grid-template-columns: repeat(2, 1fr); } }
 /* sliding nav drawer (desktop only): open = full sidebar, closed = slim icon rail */
 @media (min-width: 1001px) {
 .layout.nav-closed { grid-template-columns: 62px 1fr; }

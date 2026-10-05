@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from 'react-leaflet';
 import { HISTORICAL_INCIDENTS } from '../data/historical';
+import { envOf, ecoOf } from '../data/eco';
+import { watershedOf } from '../lib/env';
 import { CORRIDORS } from '../data/corridors';
 import { levelRank } from '../lib/riskEngine';
 import { nearestZone } from '../lib/geo';
@@ -19,8 +21,8 @@ type Filter = 'all' | 'crit' | 'corr';
 
 export default function GISMap({ zones, layers, setLayers, selectedId, focusTick, demoBoost, onSelect, lang, useLive, onToggleLive }: {
   zones: MapZone[];
-  layers: { risk: boolean; rain: boolean; hist: boolean; infra: boolean };
-  setLayers: (l: { risk: boolean; rain: boolean; hist: boolean; infra: boolean }) => void;
+  layers: { risk: boolean; rain: boolean; hist: boolean; infra: boolean; defor: boolean; glof: boolean; river: boolean };
+  setLayers: (l: { risk: boolean; rain: boolean; hist: boolean; infra: boolean; defor: boolean; glof: boolean; river: boolean }) => void;
   selectedId: string;
   focusTick: number;
   demoBoost: number;
@@ -58,10 +60,10 @@ export default function GISMap({ zones, layers, setLayers, selectedId, focusTick
         <button className={useLive ? 'chip active' : 'chip'} onClick={onToggleLive}>{t(lang, 'filterLive')}</button>
       </div>
       <div className="row">
-        {(['risk', 'rain', 'hist', 'infra'] as const).map(k => (
+        {(['risk', 'rain', 'hist', 'infra', 'defor', 'glof', 'river'] as const).map(k => (
           <label key={k} style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
             <input type="checkbox" style={{ width: 16 }} checked={layers[k]} onChange={e => setLayers({ ...layers, [k]: e.target.checked })} />
-            {k === 'risk' ? t(lang, 'riskZones') : k === 'rain' ? t(lang, 'rainHalos') : k === 'hist' ? t(lang, 'historical') : t(lang, 'infraLyr')}
+            {k === 'risk' ? t(lang, 'riskZones') : k === 'rain' ? t(lang, 'rainHalos') : k === 'hist' ? t(lang, 'historical') : k === 'infra' ? t(lang, 'infraLyr') : k === 'defor' ? t(lang, 'lyrDefor') : k === 'glof' ? t(lang, 'lyrGlof') : t(lang, 'lyrRiver')}
           </label>
         ))}
       </div>
@@ -94,6 +96,24 @@ export default function GISMap({ zones, layers, setLayers, selectedId, focusTick
             <Popup><b>{h.place}</b><br />{h.date} · {h.severity}<br />{h.trigger}<br /><i>{h.source}</i></Popup>
           </CircleMarker>
         ))}
+        {layers.defor && visible.map(z => {
+          const loss = envOf(z.zone.id).annualLossPct;
+          return (
+            <CircleMarker key={`defor-${z.zone.id}`} center={[z.zone.lat - 0.06, z.zone.lon - 0.06]} radius={4 + loss * 4} pathOptions={{ color: '#a16207', fillColor: '#eab308', fillOpacity: 0.5, dashArray: '3 3' }}>
+              <Popup><b>{t(lang, 'lyrDefor')}: {z.zone.place}</b><br />{t(lang, 'annLoss')}: {loss}%/yr (demo)</Popup>
+            </CircleMarker>
+          );
+        })}
+        {layers.glof && visible.filter(z => ecoOf(z.zone.id).glacial).map(z => (
+          <CircleMarker key={`glof-${z.zone.id}`} center={[z.zone.lat, z.zone.lon]} radius={14} pathOptions={{ className: 'pulse-crit', color: '#7dd3fc', fillColor: '#7dd3fc', fillOpacity: 0.25, weight: 2 }}>
+            <Popup><b>{t(lang, 'lyrGlof')}: {z.zone.place}</b><br />{t(lang, 'lakeSens')}: {envOf(z.zone.id).lakeSens} (demo)</Popup>
+          </CircleMarker>
+        ))}
+        {layers.river && visible.filter(z => watershedOf(z.zone).sediment === 'HIGH').map(z => (
+          <CircleMarker key={`river-${z.zone.id}`} center={[z.zone.lat + 0.05, z.zone.lon - 0.05]} radius={6} pathOptions={{ color: '#38bdf8', fillColor: '#38bdf8', fillOpacity: 0.7 }}>
+            <Popup><b>{t(lang, 'lyrRiver')}: {z.zone.place}</b><br />{t(lang, 'sedRisk')}: HIGH (demo)</Popup>
+          </CircleMarker>
+        ))}
       </MapContainer>
       {/* floating tactical HUD */}
       <div className="hud hud-tr">
@@ -109,7 +129,10 @@ export default function GISMap({ zones, layers, setLayers, selectedId, focusTick
         <span><span className="dot" style={{ background: '#22c55e' }} />{levelName(lang, 'LOW')}</span>{' '}
         <span><span className="dot" style={{ background: '#eab308' }} />{levelName(lang, 'MODERATE')}</span>{' '}
         <span><span className="dot" style={{ background: '#f97316' }} />{levelName(lang, 'HIGH')}</span>{' '}
-        <span><span className="dot" style={{ background: '#ef4444' }} />{levelName(lang, 'CRITICAL')}</span>
+        <span><span className="dot" style={{ background: '#ef4444' }} />{levelName(lang, 'CRITICAL')}</span>{' '}
+        <span><span className="dot" style={{ background: '#eab308' }} />{t(lang, 'lyrDefor')}</span>{' '}
+        <span><span className="dot" style={{ background: '#7dd3fc' }} />{t(lang, 'lyrGlof')}</span>{' '}
+        <span><span className="dot" style={{ background: '#38bdf8' }} />{t(lang, 'lyrRiver')}</span>
       </div>
       </div>
       <p className="muted">{t(lang, 'baseMap')}: {BASES[base].label} · {t(lang, 'mapNote')} {demoBoost > 0 ? t(lang, 'demoBoost') : ''}</p>
